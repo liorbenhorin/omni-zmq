@@ -37,7 +37,7 @@ cd omni-zmq
 2. Open the Window->Extensions from the top menu.
 3. On the Extensions manager windows, open the settings from the "hamburger" button near the search field.
 4. On the paths list, click the "+" button and add the path to where you cloned this repo + `/exts`.
-5. After adding the path, you will see the `LBENHORIN NVIDIA ZMQ_BRIDGE` extension in the Third-Party tab, enable it + set it to Auto Load. 
+5. After adding the path, you will see the `LBENHORIN ZMQ BRIDGE` extension in the Third-Party tab, enable it + set it to Auto Load. 
 6. Open the file `example_stage.usd` from the `assets` folder in this repo
 
 ### Server (Python app)

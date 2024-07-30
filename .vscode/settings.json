@@ -6,7 +6,7 @@
 
     // Python modules search paths:
     "python.analysis.extraPaths": [
-        "${workspaceFolder}/exts/lbenhorin.nvidia.zmq_bridge",
+        "${workspaceFolder}/exts/lbenhorin.zmq.bridge",
         "${workspaceFolder}/app/kit/exts/omni.kit.pip_archive/pip_prebundle",
         "${workspaceFolder}/app/kit/kernel/py",
         "${workspaceFolder}/app/kit/plugins/bindings-python",

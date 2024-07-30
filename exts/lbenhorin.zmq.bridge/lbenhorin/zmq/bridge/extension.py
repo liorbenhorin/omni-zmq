@@ -28,10 +28,10 @@ from .zmq_bridge import ZMQManager
 # Any class derived from `omni.ext.IExt` in the top level module (defined in `python.modules` of `extension.toml`) will
 # be instantiated when the extension gets enabled, and `on_startup(ext_id)` will be called.
 # Later when the extension gets disabled on_shutdown() is called.
-class LbenhorinNvidiaZmq_BridgeExtension(omni.ext.IExt):
+class LbenhorinZmqBridgeExtension(omni.ext.IExt):
 
     def on_startup(self, ext_id):
-        print("[lbenhorin.nvidia.zmq_bridge] Extension startup")
+        print("[lbenhorin.zmq.bridge] Extension startup")
 
         self.zmq_manager = ZMQManager()
         self.scene_root = "/World"
@@ -136,5 +136,5 @@ class LbenhorinNvidiaZmq_BridgeExtension(omni.ext.IExt):
 
     def on_shutdown(self):
         self.zmq_manager.remove_physx_callbacks()
-        print("[lbenhorin.nvidia.zmq_bridge] Extension shutdown")
+        print("[lbenhorin.zmq.bridge] Extension shutdown")
 

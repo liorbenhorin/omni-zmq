@@ -1,4 +1,4 @@
-lbenhorin.nvidia.vision_pipeline
+lbenhorin.zmq.bridge
 #############################
 
 Example of Python only extension
@@ -11,7 +11,7 @@ Example of Python only extension
    CHANGELOG
 
 
-.. automodule::"lbenhorin.nvidia.vision_pipeline"
+.. automodule::"lbenhorin.zmq.bridge"
     :platform: Windows-x86_64, Linux-x86_64
     :members:
     :undoc-members:

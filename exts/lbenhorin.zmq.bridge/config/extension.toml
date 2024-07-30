@@ -3,10 +3,10 @@
 version = "1.0.0"
 
 # Lists people or organizations that are considered the "authors" of the package.
-authors = ["NVIDIA"]
+authors = ["lior ben horin"]
 
 # The title and description fields are primarily for displaying extension info in UI
-title = "lbenhorin nvidia zmq_bridge"
+title = "lbenhorin zmq  bridge"
 description="Extention to facilitate communication between Omniverse and External application via ZMQ"
 
 # Path (relative to the root) or content of readme markdown file for UI.
@@ -38,7 +38,7 @@ icon = "data/icon.png"
 
 # Main python module this extension provides, it will be publicly available as "import lbenhorin.nvidia.vision_pipeline".
 [[python.module]]
-name = "lbenhorin.nvidia.zmq_bridge"
+name = "lbenhorin.zmq.bridge"
 
 [[test]]
 # Extra dependencies only to be used during test run

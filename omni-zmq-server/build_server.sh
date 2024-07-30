@@ -1,0 +1,1 @@
+docker build -t omni-zmq-server -f Dockerfile .

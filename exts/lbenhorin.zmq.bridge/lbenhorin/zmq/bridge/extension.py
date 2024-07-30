@@ -1,12 +1,4 @@
 import asyncio
-import math
-import struct
-import asyncio
-import zmq
-import zmq.asyncio
-import threading
-import time
-import numpy as np
 
 from pxr import Sdf, Gf, Tf
 from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
@@ -18,9 +10,7 @@ import omni.ui as ui
 
 from omni.isaac.core.world import World
 from omni.isaac.core.robots import Robot
-from omni.isaac.core.articulations import Articulation
 from omni.isaac.core.utils.types import ArticulationAction
-from omni.isaac.core.prims import XFormPrim
 
 from .zmq_bridge import ZMQManager
 

@@ -1,18 +1,13 @@
-import sys
 import dearpygui.dearpygui as dpg
 import numpy as np
-import cv2
-import threading
 import struct
 import time
-import traceback
-
 
 from zmq_handler import ZMQManager
 
 
-class VisionWindow:
-    def __init__(self, predict=True, tracking=True):
+class ZMQServerWindow:
+    def __init__(self):
         self.ports = {"rgb": 5555, "camera_link": 5557, "focal_length": 5558}
         self.dimmention = 720
         self.expected_size = self.dimmention * self.dimmention * 4
@@ -163,6 +158,6 @@ class VisionWindow:
         dpg.destroy_context()
 
 
-window = VisionWindow()
+window = ZMQServerWindow()
 window.run()
 window.cleanup()

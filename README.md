@@ -15,7 +15,7 @@ The server is a python app, running inside a docker container.
 The server aim to mimic or act as a foundation for running vision models and build behviour logics that will be communicated back to the simulator, forming a SIL (Software in the loop).
 Later this can be converted to run on edge device to form HIL (Hardware in the loop).
 
-![alt text](exts/lbenhorin.nvidia.zmq_bridge/data/preview.png)
+![alt text](exts/lbenhorin.zmq.bridge/data/preview.png)
 
 ## Quick start
 

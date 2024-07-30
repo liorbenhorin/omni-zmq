@@ -79,7 +79,7 @@ After a successful link, please restart VSCode.
 
 The extenstions in Omniverse are leveraging hot-reload, meaning every time you will save a file under the `/exts` folder, Kit will reload the extension, be minded of it.
 
-The docker run script have mounted the `/omni-zmq-server/src` folder, so you can make changes to the code while to container is running.
+The docker run script have mounted the `/omni-zmq-server/src` folder, so you can make changes to the code while the container is running.
 
 
 > Try to install and run a vision model like YOLO inside the container!

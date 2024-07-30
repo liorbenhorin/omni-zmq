@@ -2,7 +2,7 @@
 
 ## Motivation
 
-Omniverse is the most advanced simulator for vision-based systems and robots.
+[Omniverse](https://www.nvidia.com/en-eu/omniverse/) is the most advanced simulator for vision-based systems and robots.
 It has a great built-in support for ROS communication of sensory data, but not everyone is using ROS.
 This extension is built to provide simple and performent method to communicate sensory and general data to/from the simulator, using only python.
 The extention is built on top of [PyØMQ](https://pyzmq.readthedocs.io/en/latest/)
@@ -25,7 +25,7 @@ git clone https://github.com/liorbenhorin/omni-zmq.git
 cd omni-zmq
 ```
 
-> This extension and sample files are desinged for Isaac SIM.
+> This extension and sample files are desinged for [Isaac SIM](https://docs.omniverse.nvidia.com/isaacsim/latest/index.html).
 > It is leveraging the Isaac SIM API to simple the interaction with a 2DoF camera
 > The user can run this extension on any other Kit-Based application, but they will
 > need to remove the Isaac SIM API dependencies.

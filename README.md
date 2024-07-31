@@ -15,6 +15,12 @@ Later, this can be converted to run on an edge device to form HIL (Hardware in t
 
 ![alt text](exts/lbenhorin.zmq.bridge/data/preview.png)
 
+## Requirements
+
+1. Linux Ubuntu / Windows (WSL2)
+2. [NVIDIA Isaac SIM](https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_workstation.html)
+3. Docker
+
 ## Quick start
 
 Clone this repo 
@@ -41,7 +47,9 @@ cd omni-zmq
 
 > The Docker run command already introduces flags to enable NVIDIA CUDA support and GUI support. 
 > This is dependent on the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
-> Also, the flags are written for a Linux Ubuntu environment and may need to be modified for Windows..
+> Also, the flags are written for a Linux Ubuntu environment.
+> On Windows, it is recommended to run the server from within [WSL](https://learn.microsoft.com/en-us/windows/wsl/about).
+> This way is confirmed to support the app UI and CUDA if needed.
 
 1. Build the docker image and run it 
 ```bash

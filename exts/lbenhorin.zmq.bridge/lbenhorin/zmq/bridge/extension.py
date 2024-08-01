@@ -49,10 +49,6 @@ from omni.kit.widget.toolbar import WidgetGroup, get_instance
 from .zmq_bridge import ZMQManager
 
 
-
-
-
-
 @lru_cache()
 def get_data_path() -> Path:
     manager = omni.kit.app.get_app().get_extension_manager()

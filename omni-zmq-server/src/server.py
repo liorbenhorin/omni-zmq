@@ -2,6 +2,7 @@ import dearpygui.dearpygui as dpg
 import numpy as np
 import struct
 import time
+import math
 
 from zmq_handler import ZMQManager
 
@@ -15,6 +16,7 @@ class ZMQServerWindow:
         self.last_time = time.time()
         self.internal_step_time = time.time()
         self.camera_range = [20, 200]
+        self.current_camera_f = 20
 
         dpg.create_context()
         dpg.create_viewport(
@@ -73,6 +75,8 @@ class ZMQServerWindow:
         with dpg.handler_registry():
             dpg.add_key_down_handler(callback=self.key_press)
             dpg.add_key_release_handler(callback=self.key_depress)
+            dpg.add_mouse_wheel_handler(callback=self.mouse_wheel)
+            
 
         dpg.show_viewport()
         dpg.set_primary_window("Main Window", True)
@@ -100,6 +104,11 @@ class ZMQServerWindow:
             self.camera_link_command,
         )
 
+    def mouse_wheel(self, sender, app_data):
+        new_value = dpg.get_value("zoom") + (app_data*5)
+        new_value = max(min(new_value, 200), 20)
+        dpg.set_value("zoom", new_value) 
+
     def key_press(self, sender, app_data):
         if dpg.is_key_down(dpg.mvKey_Up):
             self.current_camera_command = [0, -1]
@@ -114,7 +123,22 @@ class ZMQServerWindow:
         self.current_camera_command = [0, 0]
 
     def focal_lengh_command(self):
-        return {"focal_length": dpg.get_value("zoom")}
+        def smooth_step(current, target, min_step=0.5, max_step=4, smoothness=0.1):
+            diff = abs(target - current)
+            # Use a sigmoid function for smooth interpolation
+            factor = 1 / (1 + math.exp(-diff / smoothness))
+            step = min_step + (max_step - min_step) * factor
+            return step
+        
+        target_zoom = dpg.get_value("zoom")
+        if self.current_camera_f != target_zoom:
+            step = smooth_step(self.current_camera_f, target_zoom)
+            if self.current_camera_f < target_zoom:
+                self.current_camera_f = min(self.current_camera_f + step, target_zoom)
+            else:
+                self.current_camera_f = max(self.current_camera_f - step, target_zoom)
+
+        return {"focal_length": self.current_camera_f}
 
     def camera_link_command(self):
         factor = np.interp(dpg.get_value("zoom"), self.camera_range, [0.3, 1.2])

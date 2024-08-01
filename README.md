@@ -68,7 +68,7 @@ On the Isaac SIM side, click the `Reset World` and then `Start Streaming`buttons
 ![alt text](exts/lbenhorin.zmq.bridge/data/buttons.png)
 
 
-You should see the sensor data displayed on the server side. You can use the arrow keys on the server side to rotate the camera and the focal length slider.
+You should see the sensor data displayed on the server side. You can use the arrow keys on the server side to rotate the camera and the focal length slider (or mouse wheel).
 
 
 

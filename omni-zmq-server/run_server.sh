@@ -3,6 +3,6 @@ docker run --gpus all --network host \
        -v /tmp/.X11-unix:/tmp/.X11-unix \
        -e XAUTHORITY=$XAUTHORITY \
        -v $XAUTHORITY:$XAUTHORITY \
-       -v ./src:/isaac-vision/src \
+       -v ./src:/omni-zmq-server/src \
        -it --rm \
         omni-zmq-server bash

@@ -63,7 +63,10 @@ python3 server.py
 ```
 
 ### Communication
-On the Isaac SIM side, click the `Reset World` button and then `Start RGB Streaming`.
+On the Isaac SIM side, click the `Reset World` and then `Start Streaming`buttons on the toolbar.
+
+![alt text](exts/lbenhorin.zmq.bridge/data/buttons.png)
+
 
 You should see the sensor data displayed on the server side. You can use the arrow keys on the server side to rotate the camera and the focal length slider.
 

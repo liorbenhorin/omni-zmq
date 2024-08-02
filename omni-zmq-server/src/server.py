@@ -29,10 +29,12 @@
 
 import dearpygui.dearpygui as dpg
 import numpy as np
+import cv2
 import json
 import struct
 import time
 import math
+import traceback
 
 from zmq_handler import ZMQManager
 
@@ -183,9 +185,6 @@ class ZMQServerWindow:
     def receive_images(self, message):
         img_data = message[0]
         bbox2d_data = json.loads(message[1].decode("utf-8"))
-        print(bbox2d_data["info"])
-        print(bbox2d_data["data"])
-
         dt = struct.unpack("f", message[2])[0]
 
         if len(img_data) != self.expected_size:
@@ -197,7 +196,10 @@ class ZMQServerWindow:
         img_array = np.frombuffer(img_data, dtype=np.uint8).reshape(
             self.dimmention, self.dimmention, 4
         )
-        np.divide(img_array, 255.0, out=self.texture_data)
+
+        img_with_boxes = self.draw_bounding_boxes(img_array, bbox2d_data)
+
+        np.divide(img_with_boxes, 255.0, out=self.texture_data)
 
         local_dt = time.time() - self.last_time
         self.last_time = time.time()
@@ -207,13 +209,23 @@ class ZMQServerWindow:
         dpg.set_value("local_dt", str("{:.2f}".format(local_dt)))
         dpg.set_value("local_hz", str("{:.2f}".format(1.0 / local_dt)))
 
-    # def receive_bbox2d(self, message):
-    #     print("--------------------------------------------")
-    #     print(message.keys())
-    #     print(message['data'])
-    #     print("**********")
-    #     print(message['info'])
-    #     print("--------------------------------------------")
+    def draw_bounding_boxes(self, img_array, bbox_data):
+        img_with_boxes = img_array.copy()
+        bboxes = bbox_data["data"]
+        id_to_labels = bbox_data["info"]["idToLabels"]
+        color = (0, 0, 0)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+
+        for bbox in bboxes:
+            semantic_id = bbox[0]
+            x_min, y_min = bbox[1], bbox[2]
+            x_max, y_max = bbox[3], bbox[4]
+            label = id_to_labels.get(str(semantic_id), {}).get("class", "Unknown")
+
+            cv2.rectangle(img_with_boxes, (x_min, y_min), (x_max, y_max), color, 2)
+            cv2.putText(img_with_boxes, label, (x_min, y_min - 10), font, 0.9, color, 2)
+
+        return img_with_boxes
 
     def run(self):
         while dpg.is_dearpygui_running():

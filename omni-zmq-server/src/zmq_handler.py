@@ -67,6 +67,7 @@ class ZMQManager:
     def get_push_socket(self, port: int):
         addr = f"tcp://*:{port}"
         sock = self.context().socket(zmq.PUSH)
+        sock.setsockopt(zmq.SNDTIMEO, 1000)  # 1 sec
         sock.bind(addr)
         self.push_sockets[addr] = sock
         return sock
@@ -101,7 +102,13 @@ class ZMQManager:
 
         def loop():
             while not stop_event.is_set():
-                sock.send_pyobj(fn())
+                try:
+                    sock.send_pyobj(fn())
+                except zmq.Again:
+                    continue
+                except:
+                    print("unable to send to socket...")
+                    continue
                 time.sleep(1 / rate_hz)
 
             sock.close()

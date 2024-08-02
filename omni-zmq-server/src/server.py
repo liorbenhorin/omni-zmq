@@ -46,6 +46,9 @@ class ZMQServerWindow:
         self.internal_step_time = time.time()
         self.camera_range = [20, 200]
         self.current_camera_f = 20
+        self.texture_data = np.zeros(
+            (self.dimmention, self.dimmention, 4), dtype=np.float32
+        )
 
         dpg.create_context()
         dpg.create_viewport(
@@ -61,13 +64,10 @@ class ZMQServerWindow:
         dpg.bind_font(font_medium)
 
         with dpg.texture_registry(show=False):
-            dummy_data = np.zeros(
-                (self.dimmention, self.dimmention, 4), dtype=np.float32
-            ).ravel()
             dpg.add_raw_texture(
                 self.dimmention,
                 self.dimmention,
-                dummy_data,
+                self.texture_data,
                 tag="image_stream",
                 format=dpg.mvFormat_Float_rgba,
             )
@@ -105,7 +105,6 @@ class ZMQServerWindow:
             dpg.add_key_down_handler(callback=self.key_press)
             dpg.add_key_release_handler(callback=self.key_depress)
             dpg.add_mouse_wheel_handler(callback=self.mouse_wheel)
-            
 
         dpg.show_viewport()
         dpg.set_primary_window("Main Window", True)
@@ -134,9 +133,9 @@ class ZMQServerWindow:
         )
 
     def mouse_wheel(self, sender, app_data):
-        new_value = dpg.get_value("zoom") + (app_data*5)
+        new_value = dpg.get_value("zoom") + (app_data * 5)
         new_value = max(min(new_value, 200), 20)
-        dpg.set_value("zoom", new_value) 
+        dpg.set_value("zoom", new_value)
 
     def key_press(self, sender, app_data):
         if dpg.is_key_down(dpg.mvKey_Up):
@@ -158,7 +157,7 @@ class ZMQServerWindow:
             factor = 1 / (1 + math.exp(-diff / smoothness))
             step = min_step + (max_step - min_step) * factor
             return step
-        
+
         target_zoom = dpg.get_value("zoom")
         if self.current_camera_f != target_zoom:
             step = smooth_step(self.current_camera_f, target_zoom)
@@ -189,15 +188,12 @@ class ZMQServerWindow:
         img_array = np.frombuffer(img_data, dtype=np.uint8).reshape(
             self.dimmention, self.dimmention, 4
         )
-
-        data = img_array.ravel()
-        data = np.asfarray(data, dtype="f")
-        texture_data = np.true_divide(data, 255.0)
+        np.divide(img_array, 255.0, out=self.texture_data)
 
         local_dt = time.time() - self.last_time
         self.last_time = time.time()
 
-        dpg.set_value("image_stream", texture_data)
+        dpg.set_value("image_stream", self.texture_data)
         dpg.set_value("sim_dt", str("{:.2f}".format(dt)))
         dpg.set_value("local_dt", str("{:.2f}".format(local_dt)))
         dpg.set_value("local_hz", str("{:.2f}".format(1.0 / local_dt)))

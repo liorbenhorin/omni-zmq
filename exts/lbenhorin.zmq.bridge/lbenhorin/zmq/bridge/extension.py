@@ -56,7 +56,6 @@ def get_data_path() -> Path:
     return Path(extension_path).joinpath("data")
 
 
-
 class ZMQBridgeButtonGroup(WidgetGroup):
     def __init__(self, zmq_manager: ZMQManager):
         super().__init__()
@@ -72,7 +71,7 @@ class ZMQBridgeButtonGroup(WidgetGroup):
 
     def get_style(self):
         return {}
-    
+
     def on_start_stop_click(self):
         self._is_streaming = not self._is_streaming
         self._start_stop_button.checked = False
@@ -80,12 +79,12 @@ class ZMQBridgeButtonGroup(WidgetGroup):
         if self._is_streaming:
             self._start_stop_button.image_url = f"{get_data_path()}/stop_stream.svg"
             self._start_stop_button.tooltip = "Stop Streaming"
-            print('play...') #icon has changed to stop
+            print("play...")  # icon has changed to stop
             self.start_streaming()
         else:
             self._start_stop_button.image_url = f"{get_data_path()}/play_stream.svg"
             self._start_stop_button.tooltip = "Start Streaming"
-            print('stop...') # icon has changed to play
+            print("stop...")  # icon has changed to play
             self.stop_streaming()
 
     def on_reset_click(self):
@@ -100,7 +99,7 @@ class ZMQBridgeButtonGroup(WidgetGroup):
             width=default_size,
             height=default_size,
             visible=not self._is_streaming,
-            clicked_fn=self.on_start_stop_click
+            clicked_fn=self.on_start_stop_click,
         )
 
         self._reset_button = ui.ToolButton(
@@ -109,9 +108,9 @@ class ZMQBridgeButtonGroup(WidgetGroup):
             tooltip=f"Reset World",
             width=default_size,
             height=default_size,
-            clicked_fn=self.on_reset_click
+            clicked_fn=self.on_reset_click,
         )
-    
+
     def set_camera(self):
         stage = omni.usd.get_context().get_stage()
         self.camera = stage.GetPrimAtPath("/World/Xform_frame/frame/Cylinder_01/Camera")
@@ -168,19 +167,25 @@ class ZMQBridgeButtonGroup(WidgetGroup):
         print("stopped listening")
 
     def start_streaming(self):
-        ports = {"rgb": 5555, "camera_link": 5557, "focal_length": 5558}
+        ports = {
+            "camera_annotator": 5555,
+            "camera_link": 5557,
+            "focal_length": 5558,
+        }
         rgb_hz = 1.0 / 60.0
         dimension = 720
         camera_path = f"{self.scene_root}/Xform_frame/frame/Cylinder_01/Camera"
 
-        self.rgb_annotator = self.zmq_manager.get_annotator(
-            ports["rgb"],
+        self.camera_annotator = self.zmq_manager.get_annotator(
+            ports["camera_annotator"],
             camera_path,
             (dimension, dimension),
-            "rgb",
+            "camera_annotator",
         )
 
-        self.zmq_manager.add_physx_step_callback("rgb", rgb_hz, self.rgb_annotator.send)
+        self.zmq_manager.add_physx_step_callback(
+            "camera_annotator", rgb_hz, self.camera_annotator.send
+        )
 
         self.socket_commands_in = self.zmq_manager.get_pull_socket(ports["camera_link"])
         self.socket_uav_in = self.zmq_manager.get_pull_socket(ports["focal_length"])
@@ -204,25 +209,9 @@ class LbenhorinZmqBridgeExtension(omni.ext.IExt):
         print("[lbenhorin.zmq.bridge] Extension startup")
 
         self.zmq_manager = ZMQManager()
-        # self.scene_root = "/World"
-
         self.toolbar = get_instance()
         self.button_group = ZMQBridgeButtonGroup(self.zmq_manager)
         self.toolbar.add_widget(self.button_group, 100, self.toolbar.get_context())
-  
-        # self._window = ui.Window("Omni ZMQ Bridge", width=300, height=300)
-        # with self._window.frame:
-        #     with ui.VStack():
-        #         with ui.CollapsableFrame("Core function example"):
-        #             with ui.HStack():
-        #                 ui.Button(
-        #                     "Start RGB streaming", clicked_fn=self.start_streaming
-        #                 )
-        #                 ui.Button("Stop RGB streaming", clicked_fn=self.stop_streaming)
-        #         with ui.CollapsableFrame("Scene specific function examples"):
-        #             with ui.HStack():
-        #                 ui.Button("Reset world", clicked_fn=self.reset_world)
-
 
     def on_shutdown(self):
         self.zmq_manager.remove_physx_callbacks()

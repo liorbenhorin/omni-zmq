@@ -28,6 +28,7 @@
 
 
 import traceback
+import json
 import asyncio
 import struct
 import zmq
@@ -38,6 +39,47 @@ from functools import partial
 import omni
 import omni.replicator.core as rep
 from omni.replicator.core.scripts.utils import viewport_manager
+
+
+class ZMQAnnotator:
+    def __init__(
+        self,
+        socket: zmq.asyncio.Socket,
+        camera: str,
+        resolution: tuple,
+        annotator: str,
+    ):
+
+        self.sock = socket
+
+        force_new = False
+        name = f"{camera.split('/')[-1]}_rp"
+
+        rp = viewport_manager.get_render_product(camera, resolution, force_new, name)
+        self.rgb_annot = rep.AnnotatorRegistry.get_annotator("rgb")
+        self.rgb_annot.attach(rp)
+
+        self.bbox2d_annot = rep.AnnotatorRegistry.get_annotator("bounding_box_2d_tight")
+        self.bbox2d_annot.attach(rp)
+
+    def send(self, dt: float):
+        _dt = struct.pack("f", dt)
+
+        # https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/annotators_details.html#bounding-box-2d-tight
+        bbox2d_data = self.bbox2d_annot.get_data()
+        _bbox2d_data = {
+            "info": {
+                "bboxIds": bbox2d_data["info"]["bboxIds"].tolist(),
+                "idToLabels": bbox2d_data["info"]["idToLabels"],
+                "primPaths": bbox2d_data["info"]["primPaths"],
+            },
+            "data": bbox2d_data["data"].tolist(),
+        }
+
+        _bbox2d_data = json.dumps(_bbox2d_data).encode("utf-8")
+
+        data = [self.rgb_annot.get_data().tobytes(), _bbox2d_data, _dt]
+        asyncio.ensure_future(self.sock.send_multipart(data))
 
 
 class ZMQManager:
@@ -61,7 +103,8 @@ class ZMQManager:
         return self._context
 
     def get_annotator(self, port: int, camera: str, resolution: tuple, annotator: str):
-        annot = ZMQAnnotator(self, port, camera, resolution, annotator)
+        soket = self.get_push_socket(port)
+        annot = ZMQAnnotator(soket, camera, resolution, annotator)
         self.annotators[annotator] = annot
         return annot
 
@@ -137,30 +180,5 @@ class ZMQManager:
     def remove_physx_callbacks(self):
         for name, (hz, sub) in self.phyx_callbacks.items():
             sub.unsubscribe()
-            delattr(self, f"{name}_dt_counter")
-
-
-class ZMQAnnotator:
-    def __init__(
-        self,
-        manager: ZMQManager,
-        port: int,
-        camera: str,
-        resolution: tuple,
-        annotator: str,
-    ):
-
-        self.manager = manager
-        self.sock = self.manager.get_push_socket(port)
-
-        force_new = False
-        name = f"{camera.split('/')[-1]}_rp"
-
-        rp = viewport_manager.get_render_product(camera, resolution, force_new, name)
-        self.annot = rep.AnnotatorRegistry.get_annotator(annotator)
-        self.annot.attach(rp)
-
-    def send(self, dt: float):
-        _dt = struct.pack("f", dt)
-        data = [self.annot.get_data().tobytes(), _dt]
-        asyncio.ensure_future(self.sock.send_multipart(data))
+            if hasattr(self, f"{name}_dt_counter"):
+                delattr(self, f"{name}_dt_counter")

@@ -29,6 +29,7 @@
 
 import dearpygui.dearpygui as dpg
 import numpy as np
+import json
 import struct
 import time
 import math
@@ -38,7 +39,11 @@ from zmq_handler import ZMQManager
 
 class ZMQServerWindow:
     def __init__(self):
-        self.ports = {"rgb": 5555, "camera_link": 5557, "focal_length": 5558}
+        self.ports = {
+            "camera_annotator": 5555,
+            "camera_link": 5557,
+            "focal_length": 5558,
+        }
         self.dimmention = 720
         self.expected_size = self.dimmention * self.dimmention * 4
         self.hz = 60
@@ -115,7 +120,7 @@ class ZMQServerWindow:
     def init_connections(self):
         self.zmq_manager = ZMQManager()
         self.zmq_manager.recive_from_socket_in_loop(
-            "rgb", self.ports["rgb"], self.receive_images
+            "camera_annotator", self.ports["camera_annotator"], self.receive_images
         )
 
         self.zmq_manager.send_from_socket_in_loop(
@@ -177,7 +182,11 @@ class ZMQServerWindow:
 
     def receive_images(self, message):
         img_data = message[0]
-        dt = struct.unpack("f", message[1])[0]
+        bbox2d_data = json.loads(message[1].decode("utf-8"))
+        print(bbox2d_data["info"])
+        print(bbox2d_data["data"])
+
+        dt = struct.unpack("f", message[2])[0]
 
         if len(img_data) != self.expected_size:
             print(
@@ -197,6 +206,14 @@ class ZMQServerWindow:
         dpg.set_value("sim_dt", str("{:.2f}".format(dt)))
         dpg.set_value("local_dt", str("{:.2f}".format(local_dt)))
         dpg.set_value("local_hz", str("{:.2f}".format(1.0 / local_dt)))
+
+    # def receive_bbox2d(self, message):
+    #     print("--------------------------------------------")
+    #     print(message.keys())
+    #     print(message['data'])
+    #     print("**********")
+    #     print(message['info'])
+    #     print("--------------------------------------------")
 
     def run(self):
         while dpg.is_dearpygui_running():

@@ -62,7 +62,7 @@ class ZMQServerWindow:
 
         dpg.create_context()
         dpg.create_viewport(
-            title="Omni ZMQ Server", width=720, height=840, resizable=True
+            title="Omni ZMQ Server", width=720, height=800, resizable=False
         )
         dpg.setup_dearpygui()
 
@@ -83,23 +83,29 @@ class ZMQServerWindow:
             )
 
         with dpg.window(tag="Main Window"):
-            dpg.add_image("image_stream")
+            dpg.add_image("image_stream", tag="t")
+
+            times = ["sim_dt", "local_dt", "local_hz"]
+            for index, t in enumerate(times):
+                dpg.add_text(" ".join(t.split("_")).capitalize(), pos=(10, 10+(20*index)))
+                # dpg.add_spacer(width=10)
+                with dpg.value_registry():
+                        dpg.add_string_value(tag=t, default_value="0.0")
+                dpg.add_text(source=t, label=t, pos=(80, 10+(20*index)))
+                # dpg.add_spacer(width=30)
+
+            # dpg.add_text("Camera Link",pos=(20,20))
             dpg.add_separator()
 
             with dpg.group():
-                times = ["sim_dt", "local_dt", "local_hz"]
-                for t in times:
-                    with dpg.value_registry():
-                        dpg.add_string_value(tag=t, default_value="0.0")
+                
+                # for t in times:
+                #     with dpg.value_registry():
+                #         dpg.add_string_value(tag=t, default_value="0.0")
 
-                with dpg.group(horizontal=True):
-                    for t in times:
-                        dpg.add_text(" ".join(t.split("_")).capitalize())
-                        dpg.add_spacer(width=10)
-                        dpg.add_text(source=t, label=t)
-                        dpg.add_spacer(width=30)
-
-                dpg.add_separator()
+                # with dpg.group(horizontal=True):
+                    
+                # dpg.add_separator()
                 dpg.add_text("Control Camera with arrows")
                 with dpg.group(horizontal=True):
                     dpg.add_text("Ground Truth")

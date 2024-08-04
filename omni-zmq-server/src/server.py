@@ -99,6 +99,13 @@ class ZMQServerWindow:
                 dpg.add_separator()
                 dpg.add_text("Control Camera with arrows")
                 with dpg.group(horizontal=True):
+                    dpg.add_text("Ground Truth")
+                    dpg.add_combo(
+                        items=["RGB", "BBOX2D"], 
+                        default_value="RGB", 
+                        width=100,
+                        tag="ground_truth_mode"
+                    )
                     dpg.add_text("Focal Length")
                     dpg.add_slider_float(
                         tag="zoom",
@@ -197,9 +204,10 @@ class ZMQServerWindow:
             self.dimmention, self.dimmention, 4
         )
 
-        img_with_boxes = self.draw_bounding_boxes(img_array, bbox2d_data)
+        if dpg.get_value("ground_truth_mode") == "BBOX2D":
+            img_array = self.draw_bounding_boxes(img_array, bbox2d_data)
 
-        np.divide(img_with_boxes, 255.0, out=self.texture_data)
+        np.divide(img_array, 255.0, out=self.texture_data)
 
         local_dt = time.time() - self.last_time
         self.last_time = time.time()

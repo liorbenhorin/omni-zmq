@@ -236,7 +236,7 @@ class ZMQServerWindow:
         img_with_boxes = img_array.copy()
         bboxes = bbox_data["data"]
         id_to_labels = bbox_data["info"]["idToLabels"]
-        color = (0, 0, 0)
+        color = (118, 185, 0)
         font = cv2.FONT_HERSHEY_SIMPLEX
 
         for bbox in bboxes:
@@ -248,6 +248,7 @@ class ZMQServerWindow:
             cv2.rectangle(img_with_boxes, (x_min, y_min), (x_max, y_max), color, 2)
             cv2.putText(img_with_boxes, label, (x_min, y_min - 10), font, 0.9, color, 2)
 
+        img_with_boxes[:, :, 3] = 255
         return img_with_boxes
 
     def colorize_depth(self, depth_data):
@@ -257,12 +258,12 @@ class ZMQServerWindow:
 
         # if we want the image colorized to a color:
         # depth_data = np.squeeze(depth_data)
-        
+
         depth_data = np.clip(depth_data, near, far)
         depth_data = (np.log(depth_data) - np.log(near)) / (np.log(far) - np.log(near))
         depth_data = 1.0 - depth_data
         depth_data_uint8 = (depth_data * 255).astype(np.uint8)
-        
+
         # if we want the image colorized to a color:
         # self.depth_data[:, :, 0] = depth_data_uint8
         # self.depth_data[:, :, 3] = 255

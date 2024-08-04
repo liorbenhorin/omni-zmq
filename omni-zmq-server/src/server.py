@@ -87,25 +87,17 @@ class ZMQServerWindow:
 
             times = ["sim_dt", "local_dt", "local_hz"]
             for index, t in enumerate(times):
-                dpg.add_text(" ".join(t.split("_")).capitalize(), pos=(10, 10+(20*index)))
-                # dpg.add_spacer(width=10)
                 with dpg.value_registry():
-                        dpg.add_string_value(tag=t, default_value="0.0")
-                dpg.add_text(source=t, label=t, pos=(80, 10+(20*index)))
-                # dpg.add_spacer(width=30)
+                    dpg.add_string_value(tag=t, default_value="0.0")
+                dpg.add_text(
+                    " ".join(t.split("_")).capitalize(), pos=(10, 10 + (20 * index))
+                )
 
-            # dpg.add_text("Camera Link",pos=(20,20))
+                dpg.add_text(source=t, label=t, pos=(80, 10 + (20 * index)))
+
             dpg.add_separator()
 
             with dpg.group():
-                
-                # for t in times:
-                #     with dpg.value_registry():
-                #         dpg.add_string_value(tag=t, default_value="0.0")
-
-                # with dpg.group(horizontal=True):
-                    
-                # dpg.add_separator()
                 dpg.add_text("Control Camera with arrows")
                 with dpg.group(horizontal=True):
                     dpg.add_text("Ground Truth")

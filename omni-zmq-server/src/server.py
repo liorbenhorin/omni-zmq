@@ -56,6 +56,9 @@ class ZMQServerWindow:
         self.texture_data = np.zeros(
             (self.dimmention, self.dimmention, 4), dtype=np.float32
         )
+        self.depth_data = np.zeros(
+            (self.dimmention, self.dimmention, 4), dtype=np.uint8
+        )
 
         dpg.create_context()
         dpg.create_viewport(
@@ -101,10 +104,10 @@ class ZMQServerWindow:
                 with dpg.group(horizontal=True):
                     dpg.add_text("Ground Truth")
                     dpg.add_combo(
-                        items=["RGB", "BBOX2D"], 
-                        default_value="RGB", 
+                        items=["RGB", "BBOX2D", "DEPTH"],
+                        default_value="BBOX2D",
                         width=100,
-                        tag="ground_truth_mode"
+                        tag="ground_truth_mode",
                     )
                     dpg.add_text("Focal Length")
                     dpg.add_slider_float(
@@ -192,7 +195,8 @@ class ZMQServerWindow:
     def receive_images(self, message):
         img_data = message[0]
         bbox2d_data = json.loads(message[1].decode("utf-8"))
-        dt = struct.unpack("f", message[2])[0]
+        depth_data = message[2]
+        dt = struct.unpack("f", message[3])[0]
 
         if len(img_data) != self.expected_size:
             print(
@@ -200,15 +204,26 @@ class ZMQServerWindow:
             )
             return
 
-        img_array = np.frombuffer(img_data, dtype=np.uint8).reshape(
-            self.dimmention, self.dimmention, 4
-        )
+        if dpg.get_value("ground_truth_mode") in ["BBOX2D", "RGB"]:
+            img_array = np.frombuffer(img_data, dtype=np.uint8).reshape(
+                self.dimmention, self.dimmention, 4
+            )
+            if dpg.get_value("ground_truth_mode") == "BBOX2D":
+                img_array = self.draw_bounding_boxes(img_array, bbox2d_data)
+        elif dpg.get_value("ground_truth_mode") == "DEPTH":
+            img_array = np.frombuffer(depth_data, dtype=np.float32).reshape(
+                self.dimmention, self.dimmention, 1
+            )
+            try:
+                img_array = self.colorize_depth(img_array)
+            except:
+                print(traceback.format_exc())
 
-        if dpg.get_value("ground_truth_mode") == "BBOX2D":
-            img_array = self.draw_bounding_boxes(img_array, bbox2d_data)
-
-        np.divide(img_array, 255.0, out=self.texture_data)
-
+        try:
+            np.divide(img_array, 255.0, out=self.texture_data)
+        except:
+            print("!")
+            print(traceback.format_exc())
         local_dt = time.time() - self.last_time
         self.last_time = time.time()
 
@@ -234,6 +249,24 @@ class ZMQServerWindow:
             cv2.putText(img_with_boxes, label, (x_min, y_min - 10), font, 0.9, color, 2)
 
         return img_with_boxes
+
+    def colorize_depth(self, depth_data):
+        # https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/programmatic_visualization.html#helper-visualization-functions
+        near = 1.0
+        far = 50.0
+
+        # if we want the image colorized to a color:
+        # depth_data = np.squeeze(depth_data)
+        
+        depth_data = np.clip(depth_data, near, far)
+        depth_data = (np.log(depth_data) - np.log(near)) / (np.log(far) - np.log(near))
+        depth_data = 1.0 - depth_data
+        depth_data_uint8 = (depth_data * 255).astype(np.uint8)
+        
+        # if we want the image colorized to a color:
+        # self.depth_data[:, :, 0] = depth_data_uint8
+        # self.depth_data[:, :, 3] = 255
+        return depth_data_uint8
 
     def run(self):
         while dpg.is_dearpygui_running():

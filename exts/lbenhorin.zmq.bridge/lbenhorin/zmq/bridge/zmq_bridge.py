@@ -62,6 +62,11 @@ class ZMQAnnotator:
         self.bbox2d_annot = rep.AnnotatorRegistry.get_annotator("bounding_box_2d_tight")
         self.bbox2d_annot.attach(rp)
 
+        self.distance_to_camera_annot = rep.AnnotatorRegistry.get_annotator(
+            "distance_to_camera"
+        )
+        self.distance_to_camera_annot.attach(rp)
+
     def send(self, dt: float):
         _dt = struct.pack("f", dt)
 
@@ -78,7 +83,12 @@ class ZMQAnnotator:
 
         _bbox2d_data = json.dumps(_bbox2d_data).encode("utf-8")
 
-        data = [self.rgb_annot.get_data().tobytes(), _bbox2d_data, _dt]
+        data = [
+            self.rgb_annot.get_data().tobytes(),
+            _bbox2d_data,
+            self.distance_to_camera_annot.get_data().tobytes(),
+            _dt,
+        ]
         asyncio.ensure_future(self.sock.send_multipart(data))
 
 

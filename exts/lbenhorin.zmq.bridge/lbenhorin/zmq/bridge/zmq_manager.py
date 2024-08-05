@@ -41,6 +41,8 @@ import omni.replicator.core as rep
 from omni.replicator.core.scripts.utils import viewport_manager
 
 from omni.isaac.core.world import World
+from omni.isaac.core.prims import XFormPrim
+
 
 class ZMQAnnotator:
     def __init__(
@@ -55,6 +57,7 @@ class ZMQAnnotator:
 
         force_new = False
         name = f"{camera.split('/')[-1]}_rp"
+        self.camera_xform = XFormPrim(camera)
 
         rp = viewport_manager.get_render_product(camera, resolution, force_new, name)
         self.rgb_annot = rep.AnnotatorRegistry.get_annotator("rgb")
@@ -67,6 +70,9 @@ class ZMQAnnotator:
             "distance_to_camera"
         )
         self.distance_to_camera_annot.attach(rp)
+
+        self.camera_annot = rep.AnnotatorRegistry.get_annotator("CameraParams")
+        self.camera_annot.attach(rp)
 
     def send(self, dt: float):
         _dt = struct.pack("f", dt)
@@ -84,10 +90,33 @@ class ZMQAnnotator:
 
         _bbox2d_data = json.dumps(_bbox2d_data).encode("utf-8")
 
+        cp = self.camera_annot.get_data()
+        _camera_params = {
+            "cameraAperture": cp["cameraAperture"].tolist(),
+            "cameraApertureOffset": cp["cameraApertureOffset"].tolist(),
+            "cameraFisheyeMaxFOV": cp["cameraFisheyeMaxFOV"],
+            "cameraFisheyeNominalHeight": cp["cameraFisheyeNominalHeight"],
+            "cameraFisheyeNominalWidth": cp["cameraFisheyeNominalWidth"],
+            "cameraFisheyeOpticalCentre": cp["cameraFisheyeOpticalCentre"].tolist(),
+            "cameraFisheyePolynomial": cp["cameraFisheyePolynomial"].tolist(),
+            "cameraFocalLength": cp["cameraFocalLength"],
+            "cameraFocusDistance": cp["cameraFocusDistance"],
+            "cameraFStop": cp["cameraFStop"],
+            "cameraModel": cp["cameraModel"],
+            "cameraNearFar": cp["cameraNearFar"].tolist(),
+            "cameraProjection": cp["cameraProjection"].tolist(),
+            "cameraViewTransform": cp["cameraViewTransform"].tolist(),
+            "metersPerSceneUnit": cp["metersPerSceneUnit"],
+            "renderProductResolution": cp["renderProductResolution"].tolist(),
+            "cameraWorldTransform": self.camera_xform.get_world_pose()[0].tolist(),
+        }
+        _camera_params = json.dumps(_camera_params).encode("utf-8")
+
         data = [
             self.rgb_annot.get_data().tobytes(),
             _bbox2d_data,
             self.distance_to_camera_annot.get_data().tobytes(),
+            _camera_params,
             _dt,
         ]
         asyncio.ensure_future(self.sock.send_multipart(data))
@@ -167,14 +196,16 @@ class ZMQManager:
     async def recive_data(self, sock: zmq.asyncio.Socket):
         return await sock.recv_pyobj()
 
-    def add_physx_step_callback(self, name: str, hz: float, fn: callable, world: World=None):
+    def add_physx_step_callback(
+        self, name: str, hz: float, fn: callable, world: World = None
+    ):
         # ignore this snippet for now
         # update_stream = omni.kit.app.get_app().get_update_event_stream()
         # self.sub = update_stream.create_subscription_to_pop(self.on_update, name="Live Stream")
-        
+
         setattr(self, f"{name}_dt_counter", 0)
         physx_iface = omni.physx.acquire_physx_interface()
-        
+
         sub = physx_iface.subscribe_physics_step_events(
             partial(self.on_update_physx, name, hz, fn)
         )

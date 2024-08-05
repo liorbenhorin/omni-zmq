@@ -59,6 +59,7 @@ class ZMQServerWindow:
         self.depth_data = np.zeros(
             (self.dimmention, self.dimmention, 4), dtype=np.uint8
         )
+        self.detection_world_pos = [0, 0, 0]
 
         dpg.create_context()
         dpg.create_viewport(
@@ -187,14 +188,18 @@ class ZMQServerWindow:
         factor = np.interp(dpg.get_value("zoom"), self.camera_range, [0.3, 1.2])
         command_x = self.current_camera_command[0] * factor
         command_y = self.current_camera_command[1] * factor
-        data_to_send = {"camera_link": [command_x, command_y]}
+        data_to_send = {
+            "camera_link": [command_x, command_y],
+            "detection_pos": self.detection_world_pos,
+        }
         return data_to_send
 
     def receive_images(self, message):
         img_data = message[0]
         bbox2d_data = json.loads(message[1].decode("utf-8"))
         depth_data = message[2]
-        dt = struct.unpack("f", message[3])[0]
+        camera_data = json.loads(message[3].decode("utf-8"))
+        dt = struct.unpack("f", message[4])[0]
 
         if len(img_data) != self.expected_size:
             print(
@@ -217,11 +222,13 @@ class ZMQServerWindow:
             except:
                 print(traceback.format_exc())
 
+        np.divide(img_array, 255.0, out=self.texture_data)
+
         try:
-            np.divide(img_array, 255.0, out=self.texture_data)
+            self.get_bbox_center_in_world_coords(bbox2d_data, depth_data, camera_data)
         except:
-            print("!")
             print(traceback.format_exc())
+
         local_dt = time.time() - self.last_time
         self.last_time = time.time()
 
@@ -229,6 +236,60 @@ class ZMQServerWindow:
         dpg.set_value("sim_dt", str("{:.2f}".format(dt)))
         dpg.set_value("local_dt", str("{:.2f}".format(local_dt)))
         dpg.set_value("local_hz", str("{:.2f}".format(1.0 / local_dt)))
+
+    def get_bbox_center_in_world_coords(self, bbox_data, depth_data, camera_data):
+        # Convert lists to numpy arrays
+        camera_aperture = np.array(camera_data["cameraAperture"])
+        camera_focal_length = camera_data["cameraFocalLength"]
+        camera_view_transform = np.array(camera_data["cameraViewTransform"]).reshape(
+            4, 4
+        )
+        image_width, image_height = camera_data["renderProductResolution"]
+        camera_world_pos = camera_data["cameraWorldTransform"]
+
+        # Intrinsic parameters calculation
+        f_x = (camera_focal_length / camera_aperture[0]) * image_width
+        f_y = (camera_focal_length / camera_aperture[1]) * image_height
+        c_x = image_width / 2
+        c_y = image_height / 2
+
+        intrinsic_matrix = np.array([[f_x, 0, c_x], [0, f_y, c_y], [0, 0, 1]])
+
+        # Extracting rotation (R) and translation (t) from the view transform
+        R = camera_view_transform[:3, :3]
+        t = camera_view_transform[:3, 3]
+        # t = camera_world_pos
+
+        if bbox_data["data"]:
+            for bbox in bbox_data["data"]:
+                u = int((bbox[1] + bbox[3]) / 2)
+                v = int((bbox[2] + bbox[4]) / 2)
+                break  # only handle one detection!
+        else:
+            u, v = 0, 0
+
+        _depth_data = np.frombuffer(depth_data, dtype=np.float32).reshape(
+            self.dimmention, self.dimmention
+        )
+        depth_value = _depth_data[v, u]
+
+        # Calculate 3D camera coordinates
+        X_cam = (u - c_x) * depth_value / f_x
+        Y_cam = (v - c_y) * depth_value / f_y
+        Z_cam = depth_value
+
+        camera_coords = np.array([X_cam, Y_cam, Z_cam])
+
+        # Convert camera coordinates to world coordinates
+        world_coords = R @ camera_coords + t
+        world_coords[0] *= -1  # Invert X-axis, yes...
+
+        print(f"Depth indices {u},{v}, Depth value {depth_value}")
+        # print("Intrinsic Matrix:\n", intrinsic_matrix)
+        # print("Rotation Matrix R:\n", R)
+        # print("Translation Vector t:\n", t)
+        print("3D World Coordinates:", world_coords)
+        self.detection_world_pos = world_coords
 
     def draw_bounding_boxes(self, img_array, bbox_data):
         img_with_boxes = img_array.copy()
@@ -241,8 +302,12 @@ class ZMQServerWindow:
             semantic_id = bbox[0]
             x_min, y_min = bbox[1], bbox[2]
             x_max, y_max = bbox[3], bbox[4]
-            label = id_to_labels.get(str(semantic_id), {}).get("class", "Unknown")
 
+            u = int((bbox[1] + bbox[3]) / 2)
+            v = int((bbox[2] + bbox[4]) / 2)
+
+            label = id_to_labels.get(str(semantic_id), {}).get("class", "Unknown")
+            cv2.circle(img_with_boxes, (u, v), 4, color, -1)
             cv2.rectangle(img_with_boxes, (x_min, y_min), (x_max, y_max), color, 2)
             cv2.putText(img_with_boxes, label, (x_min, y_min - 10), font, 0.9, color, 2)
 

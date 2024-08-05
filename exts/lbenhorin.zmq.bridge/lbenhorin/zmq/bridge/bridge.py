@@ -47,12 +47,31 @@ from omni.isaac.core.utils.types import ArticulationAction
 from .zmq_manager import ZMQManager
 
 
+from omni.isaac.debug_draw import _debug_draw
+
+# N = 2
+
+# point_list_1 = [
+#     (random.uniform(-3, 3), random.uniform(-3, 3), random.uniform(-3, 3)) for _ in range(N)
+# ]
+# colors = [(random.uniform(0.5, 1), random.uniform(0.5, 1), random.uniform(0.5, 1), 1) for _ in range(N)]
+# sizes = [random.randint(1, 50) for _ in range(N)]
+# draw.draw_points(point_list_1, colors, sizes)
+
+# draw.clear_points()
+
+
 class ZMQBridge:
     def __init__(self, zmq_manager: ZMQManager):
         self.zmq_manager = zmq_manager
         self.scene_root = "/World"
         self.receive_commands = False
         self._is_streaming = False
+        self.draw = _debug_draw.acquire_debug_draw_interface()
+
+    def draw_debug_point(self, pos: tuple):
+        self.draw.clear_points()
+        self.draw.draw_points([pos], [(1, 0, 0, 1)], [10])
 
     def set_camera(self):
         stage = omni.usd.get_context().get_stage()
@@ -80,6 +99,7 @@ class ZMQBridge:
         asyncio.ensure_future(_reset())
 
     def reset_world(self):
+        self.draw.clear_points()
         self.world = World()
         self.robot = Robot(
             prim_path=f"{self.scene_root}/Xform_frame/frame", name="robot"
@@ -116,6 +136,8 @@ class ZMQBridge:
                 self._camera_move([j1, j2])
             else:
                 self._camera_move([0, 0])
+
+            self.draw_debug_point(data.get("detection_pos", [0, 0, 0]))
 
         print("stopped listening")
 

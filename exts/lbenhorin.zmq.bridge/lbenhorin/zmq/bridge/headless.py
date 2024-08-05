@@ -68,11 +68,24 @@ class Setup:
         self.stage = self.context.get_stage()
 
         self.scene_root = "/World"
+        self.receive_commands = False
+        self._is_streaming = False
 
     def import_example(self):
         source_usd = str(self.assets_path / "example_stage.usd")
         root_layer = self.stage.GetRootLayer()
         LayerUtils.insert_sublayer(root_layer, 0, source_usd)
+
+    def set_camera(self):
+        stage = omni.usd.get_context().get_stage()
+        self.camera = stage.GetPrimAtPath("/World/Xform_frame/frame/Cylinder_01/Camera")
+
+    def _set_focal_length(self, focal_length):
+        try:
+            self.camera.GetAttribute("focalLength").Set(focal_length)
+            self.cur_focal_length = focal_length
+        except:
+            self.set_camera()
 
     def reset_world(self):
         self.world = World()
@@ -83,6 +96,36 @@ class Setup:
         self.world.scene.add(self.robot)
         self.world.reset()
         self.controller = self.robot.get_articulation_controller()
+
+    def _camera_move(self, speeds):
+        self.controller.apply_action(
+            ArticulationAction(
+                joint_positions=None,
+                joint_efforts=None,
+                joint_velocities=[speeds[0], speeds[1]],
+            )
+        )
+
+    async def socket_focal_lengh_in_receive_loop(self):
+        self.cur_focal_length = 0
+
+        while self.receive_commands:
+            data = await self.zmq_manager.recive_data(self.socket_uav_in)
+            if "focal_length" in data and data["focal_length"] != self.cur_focal_length:
+                self._set_focal_length(data["focal_length"])
+        print("stopped listening socket_uav_in.")
+
+    async def socket_camera_link_in_receive_loop(self):
+        while self.receive_commands:
+            data = await self.zmq_manager.recive_data(self.socket_commands_in)
+            if data["camera_link"]:
+                j1 = data["camera_link"][0]
+                j2 = data["camera_link"][1]
+                self._camera_move([j1, j2])
+            else:
+                self._camera_move([0, 0])
+
+        print("stopped listening")
 
     def start_streaming(self):
         ports = {
@@ -105,6 +148,12 @@ class Setup:
             "camera_annotator", rgb_hz, self.camera_annotator.send, world=self.world
         )
 
+        self.socket_commands_in = self.zmq_manager.get_pull_socket(ports["camera_link"])
+        self.socket_uav_in = self.zmq_manager.get_pull_socket(ports["focal_length"])
+
+        self.receive_commands = True
+        asyncio.ensure_future(self.socket_camera_link_in_receive_loop())
+        asyncio.ensure_future(self.socket_focal_lengh_in_receive_loop())
 
 
 setup = Setup()
@@ -112,11 +161,11 @@ setup.import_example()
 setup.reset_world()
 setup.start_streaming()
 
-try:
-    while True:
-        setup.world.step(render=False)
-except KeyboardInterrupt:
-    pass
 
+for i in range(20):
+    simulation_app.update()
+    print(f"Warm up step {i+1}/10")
+
+print("Streaming data...")
 rep.orchestrator.wait_until_complete()
 simulation_app.close() 

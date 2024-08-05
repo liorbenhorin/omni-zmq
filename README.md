@@ -71,6 +71,17 @@ On the Isaac SIM side, click the `Reset World` and then `Start Streaming`buttons
 You should see the sensor data displayed on the server side. You can use the arrow keys on the server side to rotate the camera and the focal length slider (or mouse wheel).
 
 
+### Headless / Standalone
+The bridge can work in headless mode for more advanced use cases, like CI/CD, automations etc. 
+Is is also more performent, since there is no need to render the Omniverse GUI.
+
+```sh
+export ISAACSIM_PYTHON = <your isaac sim install path>/python.sh
+export OMNI_ZMQ_REPO = <path to this repo>
+
+ISAACSIM_PYTHON $OMNI_ZMQ_REPO/exts/lbenhorin.zmq.bridge/lbenhorin/zmq/bridge/headless.py --ext-folder $OMNI_ZMQ_REPO/exts
+```
+
 
 ## Next steps
 

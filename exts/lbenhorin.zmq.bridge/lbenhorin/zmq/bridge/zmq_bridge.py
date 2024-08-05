@@ -40,6 +40,7 @@ import omni
 import omni.replicator.core as rep
 from omni.replicator.core.scripts.utils import viewport_manager
 
+from omni.isaac.core.world import World
 
 class ZMQAnnotator:
     def __init__(
@@ -55,7 +56,8 @@ class ZMQAnnotator:
         force_new = False
         name = f"{camera.split('/')[-1]}_rp"
 
-        rp = viewport_manager.get_render_product(camera, resolution, force_new, name)
+        # rp = viewport_manager.get_render_product(camera, resolution, force_new, name)
+        rp = rep.create.render_product(camera, resolution)
         self.rgb_annot = rep.AnnotatorRegistry.get_annotator("rgb")
         self.rgb_annot.attach(rp)
 
@@ -166,16 +168,21 @@ class ZMQManager:
     async def recive_data(self, sock: zmq.asyncio.Socket):
         return await sock.recv_pyobj()
 
-    def add_physx_step_callback(self, name: str, hz: float, fn: callable):
+    def add_physx_step_callback(self, name: str, hz: float, fn: callable, world: World=None):
         # ignore this snippet for now
         # update_stream = omni.kit.app.get_app().get_update_event_stream()
         # self.sub = update_stream.create_subscription_to_pop(self.on_update, name="Live Stream")
-
-        physx_iface = omni.physx.acquire_physx_interface()
+        
         setattr(self, f"{name}_dt_counter", 0)
-        sub = physx_iface.subscribe_physics_step_events(
-            partial(self.on_update_physx, name, hz, fn)
-        )
+        if world:
+            sub = world.add_physics_callback(name, partial(self.on_update_physx, name, hz, fn))
+        else:
+            physx_iface = omni.physx.acquire_physx_interface()
+            
+            sub = physx_iface.subscribe_physics_step_events(
+                partial(self.on_update_physx, name, hz, fn)
+            )
+
         self.phyx_callbacks[name] = (hz, sub)
         return sub
 

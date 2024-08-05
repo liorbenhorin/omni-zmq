@@ -56,8 +56,7 @@ class ZMQAnnotator:
         force_new = False
         name = f"{camera.split('/')[-1]}_rp"
 
-        # rp = viewport_manager.get_render_product(camera, resolution, force_new, name)
-        rp = rep.create.render_product(camera, resolution)
+        rp = viewport_manager.get_render_product(camera, resolution, force_new, name)
         self.rgb_annot = rep.AnnotatorRegistry.get_annotator("rgb")
         self.rgb_annot.attach(rp)
 
@@ -174,14 +173,11 @@ class ZMQManager:
         # self.sub = update_stream.create_subscription_to_pop(self.on_update, name="Live Stream")
         
         setattr(self, f"{name}_dt_counter", 0)
-        if world:
-            sub = world.add_physics_callback(name, partial(self.on_update_physx, name, hz, fn))
-        else:
-            physx_iface = omni.physx.acquire_physx_interface()
-            
-            sub = physx_iface.subscribe_physics_step_events(
-                partial(self.on_update_physx, name, hz, fn)
-            )
+        physx_iface = omni.physx.acquire_physx_interface()
+        
+        sub = physx_iface.subscribe_physics_step_events(
+            partial(self.on_update_physx, name, hz, fn)
+        )
 
         self.phyx_callbacks[name] = (hz, sub)
         return sub

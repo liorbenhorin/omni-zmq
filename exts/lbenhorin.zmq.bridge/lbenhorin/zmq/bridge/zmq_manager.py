@@ -108,7 +108,8 @@ class ZMQAnnotator:
             "cameraViewTransform": cp["cameraViewTransform"].tolist(),
             "metersPerSceneUnit": cp["metersPerSceneUnit"],
             "renderProductResolution": cp["renderProductResolution"].tolist(),
-            "cameraWorldTransform": self.camera_xform.get_world_pose()[0].tolist(),
+            "cameraWorldTransform": (self.camera_xform.get_world_pose()[0].tolist(),
+                                     self.camera_xform.get_world_pose()[1].tolist()),
         }
         _camera_params = json.dumps(_camera_params).encode("utf-8")
 

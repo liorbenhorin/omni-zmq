@@ -68,6 +68,8 @@ class ZMQBridge:
         self.receive_commands = False
         self._is_streaming = False
         self.draw = _debug_draw.acquire_debug_draw_interface()
+        # self.camera_path = "/World/Xform_frame/frame/Cylinder_01/Camera"
+        self.camera_path = "/World/Camera"
 
     def draw_debug_point(self, pos: tuple):
         self.draw.clear_points()
@@ -75,7 +77,7 @@ class ZMQBridge:
 
     def set_camera(self):
         stage = omni.usd.get_context().get_stage()
-        self.camera = stage.GetPrimAtPath("/World/Xform_frame/frame/Cylinder_01/Camera")
+        self.camera = stage.GetPrimAtPath(self.camera_path)
 
     def _set_focal_length(self, focal_length):
         try:
@@ -149,11 +151,9 @@ class ZMQBridge:
         }
         rgb_hz = 1.0 / 60.0
         dimension = 720
-        camera_path = f"{self.scene_root}/Xform_frame/frame/Cylinder_01/Camera"
-
         self.camera_annotator = self.zmq_manager.get_annotator(
             ports["camera_annotator"],
-            camera_path,
+            self.camera_path,
             (dimension, dimension),
             "camera_annotator",
         )

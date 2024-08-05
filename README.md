@@ -15,6 +15,8 @@ Later, this can be converted to run on an edge device to form HIL (Hardware in t
 
 ![alt text](exts/lbenhorin.zmq.bridge/data/preview.png)
 
+---
+
 ## Requirements
 
 1. Linux Ubuntu / Windows (WSL2)
@@ -70,6 +72,13 @@ On the Isaac SIM side, click the `Reset World` and then `Start Streaming`buttons
 
 You should see the sensor data displayed on the server side. You can use the arrow keys on the server side to rotate the camera and the focal length slider (or mouse wheel).
 
+>The example usd file and scripts will demonstrate bi-directional communication with the simulator,
+>It will use ground truth data of a simulated bbox detection of the Nova carter, as well as depth camera.
+>The data is processed inside the container to generate the world position for the center of the detection.
+>This vector is sent back to the simulator to be dispalyed.
+
+---
+
 
 ### Headless / Standalone
 The bridge can work in headless mode for more advanced use cases, like CI/CD, automations etc. 
@@ -81,7 +90,7 @@ export OMNI_ZMQ_REPO = <path to this repo>
 
 ISAACSIM_PYTHON $OMNI_ZMQ_REPO/exts/lbenhorin.zmq.bridge/lbenhorin/zmq/bridge/headless.py --ext-folder $OMNI_ZMQ_REPO/exts
 ```
-
+---
 
 ## Next steps
 

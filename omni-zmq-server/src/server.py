@@ -35,7 +35,7 @@ import struct
 import time
 import math
 import traceback
-
+from scipy.spatial.transform import Rotation
 from zmq_handler import ZMQManager
 
 
@@ -245,7 +245,8 @@ class ZMQServerWindow:
             4, 4
         )
         image_width, image_height = camera_data["renderProductResolution"]
-        camera_world_pos = camera_data["cameraWorldTransform"]
+        camera_world_pos = np.array(camera_data["cameraWorldTransform"][0])
+        camera_world_rot = np.array(camera_data["cameraWorldTransform"][1])
 
         # Intrinsic parameters calculation
         f_x = (camera_focal_length / camera_aperture[0]) * image_width
@@ -257,6 +258,15 @@ class ZMQServerWindow:
 
         # Extracting rotation (R) and translation (t) from the view transform
         R = camera_view_transform[:3, :3]
+        # R = Rotation.from_quat(camera_world_rot).as_matrix()
+        # Adjust rotation matrix for Z-up coordinate system
+        # R_adjust = np.array([
+        #     [1, 0, 0],
+        #     [0, 0, 1],
+        #     [0, -1, 0]
+        # ])
+        # R = R @ R_adjust
+
         t = camera_view_transform[:3, 3]
         # t = camera_world_pos
 
@@ -276,18 +286,19 @@ class ZMQServerWindow:
         # Calculate 3D camera coordinates
         X_cam = (u - c_x) * depth_value / f_x
         Y_cam = (v - c_y) * depth_value / f_y
-        Z_cam = depth_value
+        Z_cam = - depth_value
 
         camera_coords = np.array([X_cam, Y_cam, Z_cam])
 
         # Convert camera coordinates to world coordinates
         world_coords = R @ camera_coords + t
-        world_coords[0] *= -1  # Invert X-axis, yes...
-
+        # world_coords[0] *= -1  # Invert X-axis, yes...
+        np.set_printoptions(precision=3, suppress=True)
         print(f"Depth indices {u},{v}, Depth value {depth_value}")
         # print("Intrinsic Matrix:\n", intrinsic_matrix)
-        # print("Rotation Matrix R:\n", R)
-        # print("Translation Vector t:\n", t)
+        print("Rotation Matrix R:\n", R)
+        # print("Camera world Rot:\n", camera_world_rot)
+        print("Translation Vector t:\n", t)
         print("3D World Coordinates:", world_coords)
         self.detection_world_pos = world_coords
 

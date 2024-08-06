@@ -29,12 +29,14 @@
 
 import dearpygui.dearpygui as dpg
 import numpy as np
+import torch
 import cv2
 import json
 import struct
 import time
 import math
 import traceback
+import time
 from zmq_handler import ZMQManager
 
 np.set_printoptions(precision=4, suppress=True)
@@ -119,9 +121,7 @@ class ZMQServerWindow:
                         width=200,
                     )
                     dpg.add_text("Draw Detection on World")
-                    dpg.add_checkbox(
-                        default_value=True, tag="draw_detection_on_world"
-                    )
+                    dpg.add_checkbox(default_value=True, tag="draw_detection_on_world")
 
         with dpg.handler_registry():
             dpg.add_key_down_handler(callback=self.key_press)
@@ -131,8 +131,48 @@ class ZMQServerWindow:
         dpg.show_viewport()
         dpg.set_primary_window("Main Window", True)
 
+        self.gpu_preallocate()
         self.current_camera_command = [0, 0]
         self.init_connections()
+
+    def gpu_preallocate(self):
+
+        # Pre-allocate memory on GPU for depth data
+        self._depth_data_gpu = torch.zeros(
+            (self.dimmention, self.dimmention), device="cuda", dtype=torch.float32
+        )
+        # Prepare placeholders for matrices on GPU
+        self.view_matrix_ros_gpu = None
+        self.intrinsics_matrix_gpu = None
+        self.inverse_intrinsics_gpu = None
+
+    def update_camera_matrices(self, view_matrix_ros, intrinsics_matrix):
+        # Update view matrix on GPU
+        if self.view_matrix_ros_gpu is None:
+            self.view_matrix_ros_gpu = torch.tensor(
+                view_matrix_ros, device="cuda", dtype=torch.float32
+            )
+        else:
+            self.view_matrix_ros_gpu.copy_(
+                torch.tensor(view_matrix_ros, device="cuda", dtype=torch.float32)
+            )
+
+        # Update intrinsics matrix on GPU and calculate its inverse
+        if self.intrinsics_matrix_gpu is None:
+            self.intrinsics_matrix_gpu = torch.tensor(
+                intrinsics_matrix, device="cuda", dtype=torch.float32
+            )
+        else:
+            self.intrinsics_matrix_gpu.copy_(
+                torch.tensor(intrinsics_matrix, device="cuda", dtype=torch.float32)
+            )
+
+        # Compute the inverse of the intrinsics matrix on GPU
+        try:
+            self.inverse_intrinsics_gpu = torch.inverse(self.intrinsics_matrix_gpu)
+        except RuntimeError as e:
+            print(f"Error computing inverse intrinsics matrix: {e}")
+            self.inverse_intrinsics_gpu = None
 
     def init_connections(self):
         self.zmq_manager = ZMQManager()
@@ -201,6 +241,7 @@ class ZMQServerWindow:
         return data_to_send
 
     def receive_images(self, message):
+        start_time = time.perf_counter()
         img_data = message[0]
         bbox2d_data = json.loads(message[1].decode("utf-8"))
         depth_data = message[2]
@@ -231,10 +272,9 @@ class ZMQServerWindow:
         np.divide(img_array, 255.0, out=self.texture_data)
 
         if dpg.get_value("draw_detection_on_world"):
-            try:
-                self.get_bbox_center_in_world_coords(bbox2d_data, depth_data, camera_data)
-            except:
-                print(traceback.format_exc())
+            self.get_bbox_center_in_world_coords(
+                bbox2d_data, depth_data, camera_data, device="cuda"
+            )
         else:
             self.detection_world_pos = [0, 0, 0]
 
@@ -246,28 +286,71 @@ class ZMQServerWindow:
         dpg.set_value("local_dt", str("{:.2f}".format(local_dt)))
         dpg.set_value("local_hz", str("{:.2f}".format(1.0 / local_dt)))
 
-    def get_bbox_center_in_world_coords(self, bbox_data, depth_data, camera_data):
+        # print(f'recived image in {(time.perf_counter() - start_time)*10000}')
 
+    def get_bbox_center_in_world_coords(
+        self, bbox_data, depth_data, camera_data, device="cuda"
+    ):
         if bbox_data["data"]:
             for bbox in bbox_data["data"]:
                 u = int((bbox[1] + bbox[3]) / 2)
                 v = int((bbox[2] + bbox[4]) / 2)
-                break  # only handle one detection!
+                break  # only handle a single detection!
         else:
             self.detection_world_pos = [0, 0, 0]
             return
 
         self.detection_camera_pos = [u, v]
+        point = [u, v]
 
+        if device == "cuda":
+            view_matrix_ros = np.array(camera_data["view_matrix_ros"])
+            intrinsics_matrix = np.array(camera_data["intrinsics_matrix"])
+            self.update_camera_matrices(view_matrix_ros, intrinsics_matrix)
+            self.get_bbox_center_in_world_coords_gpu(depth_data, point)
+        else:
+            self.get_bbox_center_in_world_coords_cpu(depth_data, camera_data, point)
+
+    def get_bbox_center_in_world_coords_gpu(self, depth_data, point):
+        u, v = point
+        depth_array = np.frombuffer(depth_data, dtype=np.float32).reshape(
+            self.dimmention, self.dimmention
+        )
+        depth_array = np.copy(depth_array)
+        self._depth_data_gpu.copy_(torch.from_numpy(depth_array).cuda())
+        depth_value = self._depth_data_gpu[v, u] - 0.5
+
+        homogenous_point = torch.tensor([u, v, 1.0], device="cuda", dtype=torch.float32)
+        point_camera_coords = torch.mv(
+            self.inverse_intrinsics_gpu, homogenous_point * depth_value
+        )
+
+        point_camera_coords_homogenous = torch.cat(
+            [
+                point_camera_coords,
+                torch.tensor([1.0], device="cuda", dtype=torch.float32),
+            ]
+        )
+        inverse_view_matrix_gpu = torch.inverse(self.view_matrix_ros_gpu)
+        point_world_coords_homogenous = torch.mv(
+            inverse_view_matrix_gpu, point_camera_coords_homogenous
+        )
+
+        point_world_coords = point_world_coords_homogenous[:3].cpu().numpy().tolist()
+        self.detection_world_pos = point_world_coords
+
+    def get_bbox_center_in_world_coords_cpu(self, depth_data, camera_data, point):
+        u, v = point
         _depth_data = np.frombuffer(depth_data, dtype=np.float32).reshape(
             self.dimmention, self.dimmention
         )
         depth_value = _depth_data[v, u] - 0.5
 
+        #####################################################################################
         # This is a simplification of:
         # omni.sensor.Camera.get_world_points_from_image_coords()
         # https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.sensor/docs/index.html#omni.isaac.sensor.scripts.camera.Camera.get_world_points_from_image_coords
-
+        # It is implemented for gpu as well as torch
         view_matrix_ros = np.array(camera_data["view_matrix_ros"])
         intrinsics_matrix = np.array(camera_data["intrinsics_matrix"])
 
@@ -284,8 +367,8 @@ class ZMQServerWindow:
         )
 
         point_world_coords = point_world_coords_homogenous[:3].tolist()
-
         #####################################################################################
+
         self.detection_world_pos = point_world_coords
 
     def draw_bounding_boxes(self, img_array, bbox_data):

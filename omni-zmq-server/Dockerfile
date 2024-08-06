@@ -5,7 +5,7 @@ RUN apt-get update
 RUN apt-get install pip libgl1-mesa-glx libglib2.0-0 -y 
 
 
-RUN pip install dearpygui zmq opencv-python numpy==1.23.5 scipy
+RUN pip install dearpygui zmq opencv-python numpy==1.23.5
 WORKDIR /omni-zmq-server/src
 ADD ./src /omni-zmq-server/src
 

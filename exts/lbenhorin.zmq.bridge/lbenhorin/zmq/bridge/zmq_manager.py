@@ -42,6 +42,11 @@ from omni.replicator.core.scripts.utils import viewport_manager
 
 from omni.isaac.core.world import World
 from omni.isaac.core.prims import XFormPrim
+from omni.isaac.sensor import Camera
+
+import numpy as np
+
+np.set_printoptions(precision=3, suppress=True)
 
 
 class ZMQAnnotator:
@@ -73,6 +78,13 @@ class ZMQAnnotator:
 
         self.camera_annot = rep.AnnotatorRegistry.get_annotator("CameraParams")
         self.camera_annot.attach(rp)
+
+        self._camera = Camera(
+            prim_path=camera,
+            render_product_path=rp.path,
+            resolution=resolution,
+        )
+        self._camera.initialize()
 
     def send(self, dt: float):
         _dt = struct.pack("f", dt)
@@ -108,9 +120,14 @@ class ZMQAnnotator:
             "cameraViewTransform": cp["cameraViewTransform"].tolist(),
             "metersPerSceneUnit": cp["metersPerSceneUnit"],
             "renderProductResolution": cp["renderProductResolution"].tolist(),
-            "cameraWorldTransform": (self.camera_xform.get_world_pose()[0].tolist(),
-                                     self.camera_xform.get_world_pose()[1].tolist()),
+            "cameraWorldTransform": (
+                self.camera_xform.get_world_pose()[0].tolist(),
+                self.camera_xform.get_world_pose()[1].tolist(),
+            ),
+            "view_matrix_ros": self._camera.get_view_matrix_ros().tolist(),
+            "intrinsics_matrix": self._camera.get_intrinsics_matrix().tolist(),
         }
+
         _camera_params = json.dumps(_camera_params).encode("utf-8")
 
         data = [

@@ -43,22 +43,10 @@ import omni.ui as ui
 from omni.isaac.core.world import World
 from omni.isaac.core.robots import Robot
 from omni.isaac.core.utils.types import ArticulationAction
-
 from .zmq_manager import ZMQManager
 
 
 from omni.isaac.debug_draw import _debug_draw
-
-# N = 2
-
-# point_list_1 = [
-#     (random.uniform(-3, 3), random.uniform(-3, 3), random.uniform(-3, 3)) for _ in range(N)
-# ]
-# colors = [(random.uniform(0.5, 1), random.uniform(0.5, 1), random.uniform(0.5, 1), 1) for _ in range(N)]
-# sizes = [random.randint(1, 50) for _ in range(N)]
-# draw.draw_points(point_list_1, colors, sizes)
-
-# draw.clear_points()
 
 
 class ZMQBridge:
@@ -68,8 +56,7 @@ class ZMQBridge:
         self.receive_commands = False
         self._is_streaming = False
         self.draw = _debug_draw.acquire_debug_draw_interface()
-        # self.camera_path = "/World/Xform_frame/frame/Cylinder_01/Camera"
-        self.camera_path = "/World/Camera"
+        self.camera_path = "/World/Xform_frame/frame/Cylinder_01/Camera"
 
     def draw_debug_point(self, pos: tuple):
         self.draw.clear_points()

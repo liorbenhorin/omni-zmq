@@ -35,8 +35,9 @@ import struct
 import time
 import math
 import traceback
-from scipy.spatial.transform import Rotation
 from zmq_handler import ZMQManager
+
+np.set_printoptions(precision=4, suppress=True)
 
 
 class ZMQServerWindow:
@@ -60,6 +61,7 @@ class ZMQServerWindow:
             (self.dimmention, self.dimmention, 4), dtype=np.uint8
         )
         self.detection_world_pos = [0, 0, 0]
+        self.detection_camera_pos = [0, 0]
 
         dpg.create_context()
         dpg.create_viewport(
@@ -238,37 +240,6 @@ class ZMQServerWindow:
         dpg.set_value("local_hz", str("{:.2f}".format(1.0 / local_dt)))
 
     def get_bbox_center_in_world_coords(self, bbox_data, depth_data, camera_data):
-        # Convert lists to numpy arrays
-        camera_aperture = np.array(camera_data["cameraAperture"])
-        camera_focal_length = camera_data["cameraFocalLength"]
-        camera_view_transform = np.array(camera_data["cameraViewTransform"]).reshape(
-            4, 4
-        )
-        image_width, image_height = camera_data["renderProductResolution"]
-        camera_world_pos = np.array(camera_data["cameraWorldTransform"][0])
-        camera_world_rot = np.array(camera_data["cameraWorldTransform"][1])
-
-        # Intrinsic parameters calculation
-        f_x = (camera_focal_length / camera_aperture[0]) * image_width
-        f_y = (camera_focal_length / camera_aperture[1]) * image_height
-        c_x = image_width / 2
-        c_y = image_height / 2
-
-        intrinsic_matrix = np.array([[f_x, 0, c_x], [0, f_y, c_y], [0, 0, 1]])
-
-        # Extracting rotation (R) and translation (t) from the view transform
-        R = camera_view_transform[:3, :3]
-        # R = Rotation.from_quat(camera_world_rot).as_matrix()
-        # Adjust rotation matrix for Z-up coordinate system
-        # R_adjust = np.array([
-        #     [1, 0, 0],
-        #     [0, 0, 1],
-        #     [0, -1, 0]
-        # ])
-        # R = R @ R_adjust
-
-        t = camera_view_transform[:3, 3]
-        # t = camera_world_pos
 
         if bbox_data["data"]:
             for bbox in bbox_data["data"]:
@@ -276,31 +247,39 @@ class ZMQServerWindow:
                 v = int((bbox[2] + bbox[4]) / 2)
                 break  # only handle one detection!
         else:
-            u, v = 0, 0
+            self.detection_world_pos = [0, 0, 0]
+            return
+
+        self.detection_camera_pos = [u, v]
 
         _depth_data = np.frombuffer(depth_data, dtype=np.float32).reshape(
             self.dimmention, self.dimmention
         )
-        depth_value = _depth_data[v, u]
+        depth_value = _depth_data[v, u] - 2
 
-        # Calculate 3D camera coordinates
-        X_cam = (u - c_x) * depth_value / f_x
-        Y_cam = (v - c_y) * depth_value / f_y
-        Z_cam = - depth_value
+        view_matrix_ros = np.array(camera_data["view_matrix_ros"])
+        intrinsics_matrix = np.array(camera_data["intrinsics_matrix"])
 
-        camera_coords = np.array([X_cam, Y_cam, Z_cam])
+        homogenous_point = np.array([u, v, 1.0])
+        inverse_intrinsics = np.linalg.inv(intrinsics_matrix)
 
-        # Convert camera coordinates to world coordinates
-        world_coords = R @ camera_coords + t
-        # world_coords[0] *= -1  # Invert X-axis, yes...
-        np.set_printoptions(precision=3, suppress=True)
-        print(f"Depth indices {u},{v}, Depth value {depth_value}")
-        # print("Intrinsic Matrix:\n", intrinsic_matrix)
-        print("Rotation Matrix R:\n", R)
-        # print("Camera world Rot:\n", camera_world_rot)
-        print("Translation Vector t:\n", t)
-        print("3D World Coordinates:", world_coords)
-        self.detection_world_pos = world_coords
+        point_camera_coords = inverse_intrinsics @ (homogenous_point * depth_value)
+
+        point_camera_coords_homogenous = np.append(point_camera_coords, 1.0)
+        inverse_view_matrix = np.linalg.inv(view_matrix_ros)
+
+        point_world_coords_homogenous = (
+            inverse_view_matrix @ point_camera_coords_homogenous
+        )
+
+        # Extract 3D world coordinates (X, Y, Z)
+        point_world_coords = point_world_coords_homogenous[:3].tolist()
+
+        # print("-"*30)
+        # print(view_matrix_ros, view_matrix_ros.shape)
+        # print(intrinsics_matrix, intrinsics_matrix.shape)
+        # print("Extracted 3D World Coordinates:", point_world_coords)
+        self.detection_world_pos = point_world_coords
 
     def draw_bounding_boxes(self, img_array, bbox_data):
         img_with_boxes = img_array.copy()
@@ -318,7 +297,7 @@ class ZMQServerWindow:
             v = int((bbox[2] + bbox[4]) / 2)
 
             label = id_to_labels.get(str(semantic_id), {}).get("class", "Unknown")
-            cv2.circle(img_with_boxes, (u, v), 4, color, -1)
+            cv2.circle(img_with_boxes, (u, v), 10, color, 2)
             cv2.rectangle(img_with_boxes, (x_min, y_min), (x_max, y_max), color, 2)
             cv2.putText(img_with_boxes, label, (x_min, y_min - 10), font, 0.9, color, 2)
 

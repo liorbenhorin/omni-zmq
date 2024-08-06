@@ -76,8 +76,8 @@ class ZMQAnnotator:
         )
         self.distance_to_camera_annot.attach(rp)
 
-        self.camera_annot = rep.AnnotatorRegistry.get_annotator("CameraParams")
-        self.camera_annot.attach(rp)
+        # self.camera_annot = rep.AnnotatorRegistry.get_annotator("CameraParams")
+        # self.camera_annot.attach(rp)
 
         self._camera = Camera(
             prim_path=camera,
@@ -102,28 +102,28 @@ class ZMQAnnotator:
 
         _bbox2d_data = json.dumps(_bbox2d_data).encode("utf-8")
 
-        cp = self.camera_annot.get_data()
+        # cp = self.camera_annot.get_data()
         _camera_params = {
-            "cameraAperture": cp["cameraAperture"].tolist(),
-            "cameraApertureOffset": cp["cameraApertureOffset"].tolist(),
-            "cameraFisheyeMaxFOV": cp["cameraFisheyeMaxFOV"],
-            "cameraFisheyeNominalHeight": cp["cameraFisheyeNominalHeight"],
-            "cameraFisheyeNominalWidth": cp["cameraFisheyeNominalWidth"],
-            "cameraFisheyeOpticalCentre": cp["cameraFisheyeOpticalCentre"].tolist(),
-            "cameraFisheyePolynomial": cp["cameraFisheyePolynomial"].tolist(),
-            "cameraFocalLength": cp["cameraFocalLength"],
-            "cameraFocusDistance": cp["cameraFocusDistance"],
-            "cameraFStop": cp["cameraFStop"],
-            "cameraModel": cp["cameraModel"],
-            "cameraNearFar": cp["cameraNearFar"].tolist(),
-            "cameraProjection": cp["cameraProjection"].tolist(),
-            "cameraViewTransform": cp["cameraViewTransform"].tolist(),
-            "metersPerSceneUnit": cp["metersPerSceneUnit"],
-            "renderProductResolution": cp["renderProductResolution"].tolist(),
-            "cameraWorldTransform": (
-                self.camera_xform.get_world_pose()[0].tolist(),
-                self.camera_xform.get_world_pose()[1].tolist(),
-            ),
+            # "cameraAperture": cp["cameraAperture"].tolist(),
+            # "cameraApertureOffset": cp["cameraApertureOffset"].tolist(),
+            # "cameraFisheyeMaxFOV": cp["cameraFisheyeMaxFOV"],
+            # "cameraFisheyeNominalHeight": cp["cameraFisheyeNominalHeight"],
+            # "cameraFisheyeNominalWidth": cp["cameraFisheyeNominalWidth"],
+            # "cameraFisheyeOpticalCentre": cp["cameraFisheyeOpticalCentre"].tolist(),
+            # "cameraFisheyePolynomial": cp["cameraFisheyePolynomial"].tolist(),
+            # "cameraFocalLength": cp["cameraFocalLength"],
+            # "cameraFocusDistance": cp["cameraFocusDistance"],
+            # "cameraFStop": cp["cameraFStop"],
+            # "cameraModel": cp["cameraModel"],
+            # "cameraNearFar": cp["cameraNearFar"].tolist(),
+            # "cameraProjection": cp["cameraProjection"].tolist(),
+            # "cameraViewTransform": cp["cameraViewTransform"].tolist(),
+            # "metersPerSceneUnit": cp["metersPerSceneUnit"],
+            # "renderProductResolution": cp["renderProductResolution"].tolist(),
+            # "cameraWorldTransform": (
+            #     self.camera_xform.get_world_pose()[0].tolist(),
+            #     self.camera_xform.get_world_pose()[1].tolist(),
+            # ),
             "view_matrix_ros": self._camera.get_view_matrix_ros().tolist(),
             "intrinsics_matrix": self._camera.get_intrinsics_matrix().tolist(),
         }

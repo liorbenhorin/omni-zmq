@@ -77,6 +77,7 @@ You should see the sensor data displayed on the server side. You can use the arr
 >The data is processed inside the container to generate the world position for the center of the detection.
 >This vector is sent back to the simulator to be dispalyed.
 
+![alt text](exts/lbenhorin.zmq.bridge/data/2d_to_3d.png)
 ---
 
 

@@ -118,6 +118,10 @@ class ZMQServerWindow:
                         max_value=self.camera_range[1],
                         width=200,
                     )
+                    dpg.add_text("Draw Detection on World")
+                    dpg.add_checkbox(
+                        default_value=True, tag="draw_detection_on_world"
+                    )
 
         with dpg.handler_registry():
             dpg.add_key_down_handler(callback=self.key_press)
@@ -226,10 +230,13 @@ class ZMQServerWindow:
 
         np.divide(img_array, 255.0, out=self.texture_data)
 
-        try:
-            self.get_bbox_center_in_world_coords(bbox2d_data, depth_data, camera_data)
-        except:
-            print(traceback.format_exc())
+        if dpg.get_value("draw_detection_on_world"):
+            try:
+                self.get_bbox_center_in_world_coords(bbox2d_data, depth_data, camera_data)
+            except:
+                print(traceback.format_exc())
+        else:
+            self.detection_world_pos = [0, 0, 0]
 
         local_dt = time.time() - self.last_time
         self.last_time = time.time()
@@ -255,7 +262,11 @@ class ZMQServerWindow:
         _depth_data = np.frombuffer(depth_data, dtype=np.float32).reshape(
             self.dimmention, self.dimmention
         )
-        depth_value = _depth_data[v, u] - 2
+        depth_value = _depth_data[v, u] - 0.5
+
+        # This is a simplification of:
+        # omni.sensor.Camera.get_world_points_from_image_coords()
+        # https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.sensor/docs/index.html#omni.isaac.sensor.scripts.camera.Camera.get_world_points_from_image_coords
 
         view_matrix_ros = np.array(camera_data["view_matrix_ros"])
         intrinsics_matrix = np.array(camera_data["intrinsics_matrix"])
@@ -272,13 +283,9 @@ class ZMQServerWindow:
             inverse_view_matrix @ point_camera_coords_homogenous
         )
 
-        # Extract 3D world coordinates (X, Y, Z)
         point_world_coords = point_world_coords_homogenous[:3].tolist()
 
-        # print("-"*30)
-        # print(view_matrix_ros, view_matrix_ros.shape)
-        # print(intrinsics_matrix, intrinsics_matrix.shape)
-        # print("Extracted 3D World Coordinates:", point_world_coords)
+        #####################################################################################
         self.detection_world_pos = point_world_coords
 
     def draw_bounding_boxes(self, img_array, bbox_data):

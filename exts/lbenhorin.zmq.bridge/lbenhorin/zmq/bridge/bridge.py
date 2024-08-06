@@ -60,7 +60,7 @@ class ZMQBridge:
 
     def draw_debug_point(self, pos: tuple):
         self.draw.clear_points()
-        self.draw.draw_points([pos], [(1, 0, 0, 1)], [10])
+        self.draw.draw_points([pos], [(0, 0, 1, 1)], [10])
 
     def set_camera(self):
         stage = omni.usd.get_context().get_stage()

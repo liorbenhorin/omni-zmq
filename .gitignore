@@ -12,6 +12,10 @@ _*/
 /app
 
 /assets/.thumbs
+/assets/camera/build
+/assets/camera/.thumbs
+
+
 
 *.cbin
 *.cinfo

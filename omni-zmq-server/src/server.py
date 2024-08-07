@@ -201,9 +201,9 @@ class ZMQServerWindow:
 
     def key_press(self, sender, app_data):
         if dpg.is_key_down(dpg.mvKey_Up):
-            self.current_camera_command = [0, -1]
-        elif dpg.is_key_down(dpg.mvKey_Down):
             self.current_camera_command = [0, 1]
+        elif dpg.is_key_down(dpg.mvKey_Down):
+            self.current_camera_command = [0, -1]
         elif dpg.is_key_down(dpg.mvKey_Left):
             self.current_camera_command = [1, 0]
         elif dpg.is_key_down(dpg.mvKey_Right):
@@ -318,7 +318,7 @@ class ZMQServerWindow:
         )
         depth_array = np.copy(depth_array)
         self._depth_data_gpu.copy_(torch.from_numpy(depth_array).cuda())
-        depth_value = self._depth_data_gpu[v, u] - 0.5
+        depth_value = (self._depth_data_gpu[v, u] * 10) - 2
 
         homogenous_point = torch.tensor([u, v, 1.0], device="cuda", dtype=torch.float32)
         point_camera_coords = torch.mv(
@@ -344,7 +344,7 @@ class ZMQServerWindow:
         _depth_data = np.frombuffer(depth_data, dtype=np.float32).reshape(
             self.dimmention, self.dimmention
         )
-        depth_value = _depth_data[v, u] - 0.5
+        depth_value = (_depth_data[v, u] * 10) - 2
 
         #####################################################################################
         # This is a simplification of:

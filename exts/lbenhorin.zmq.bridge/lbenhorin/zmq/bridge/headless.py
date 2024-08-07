@@ -61,7 +61,7 @@ class ZMQBridgeHeadless(ZMQBridge):
         context = omni.usd.get_context()
         stage = context.get_stage()
         assets_path = Path(get_data_path()).parent.parent.parent / "assets"
-        source_usd = str(assets_path / "example_stage.usd")
+        source_usd = str(assets_path / "camera"/ "camera_world.usda")
         root_layer = stage.GetRootLayer()
         LayerUtils.insert_sublayer(root_layer, 0, source_usd)
 

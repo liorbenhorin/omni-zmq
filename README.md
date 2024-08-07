@@ -43,7 +43,7 @@ cd omni-zmq
 3. In the Extensions manager window, open the settings from the "hamburger" button near the search field.
 4. In the paths list, click the "+" button and add the path to where you cloned this repo + `/exts`.
 5. After adding the path, you will see the `LBENHORIN ZMQ BRIDGE` extension in the Third-Party tab, enable it and set it to Auto Load.
-6. Open the file `example_stage.usd` from the `assets` folder in this repo.
+6. Open the file `camera_world.usd` from the `assets/camera` folder in this repo.
 
 ### Server (Python app)
 

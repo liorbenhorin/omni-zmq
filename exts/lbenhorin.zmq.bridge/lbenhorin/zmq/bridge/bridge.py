@@ -56,7 +56,7 @@ class ZMQBridge:
         self.receive_commands = False
         self._is_streaming = False
         self.draw = _debug_draw.acquire_debug_draw_interface()
-        self.camera_path = "/World/Xform_frame/frame/Cylinder_01/Camera"
+        self.camera_path = "/World/base_link/y_link/Camera"
 
     def draw_debug_point(self, pos: tuple):
         self.draw.clear_points()
@@ -78,7 +78,7 @@ class ZMQBridge:
             self.world = World()
             await self.world.initialize_simulation_context_async()
             self.robot = Robot(
-                prim_path=f"{self.scene_root}/Xform_frame/frame", name="robot"
+                prim_path=f"/World/base_link", name="robot"
             )
             self.world.scene.clear(registry_only=True)
             self.world.scene.add(self.robot)
@@ -91,7 +91,7 @@ class ZMQBridge:
         self.draw.clear_points()
         self.world = World()
         self.robot = Robot(
-            prim_path=f"{self.scene_root}/Xform_frame/frame", name="robot"
+            prim_path=f"/World/base_link", name="robot"
         )
         self.world.scene.clear(registry_only=True)
         self.world.scene.add(self.robot)

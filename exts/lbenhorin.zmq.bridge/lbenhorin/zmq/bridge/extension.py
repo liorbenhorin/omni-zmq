@@ -30,5 +30,5 @@ class LbenhorinZmqBridgeExtension(omni.ext.IExt):
         self.button_group.mission.zmq_manager.remove_physx_callbacks()
         self.toolbar.remove_widget(self.button_group)
         self.button_group = None
-        
+
         print("[lbenhorin.zmq.bridge] Extension shutdown")

@@ -37,11 +37,11 @@ class CameraSurveillanceMission(Mission):
         rgb_hz = 1.0 / 60.0
         dimension = 720
 
-        self.socket_camera_out = self.zmq_manager.get_push_socket(
+        self.socket_camera_out = self.zmq_client.get_push_socket(
             ports["camera_annotator"]
         )
-        self.socket_commands_in = self.zmq_manager.get_pull_socket(ports["camera_link"])
-        self.socket_uav_in = self.zmq_manager.get_pull_socket(ports["focal_length"])
+        self.socket_commands_in = self.zmq_client.get_pull_socket(ports["camera_link"])
+        self.socket_uav_in = self.zmq_client.get_pull_socket(ports["focal_length"])
 
         self.camera_annotator = ZMQAnnotator(
             self.socket_camera_out,
@@ -50,7 +50,7 @@ class CameraSurveillanceMission(Mission):
             "camera_annotator",
         )
 
-        self.zmq_manager.add_physx_step_callback(
+        self.zmq_client.add_physx_step_callback(
             "camera_annotator", rgb_hz, self.camera_annotator.send
         )
 
@@ -107,14 +107,14 @@ class CameraSurveillanceMission(Mission):
         self.cur_focal_length = 0
 
         while self.receive_commands:
-            data = await self.zmq_manager.recive_data(self.socket_uav_in)
+            data = await self.zmq_client.recive_data(self.socket_uav_in)
             if "focal_length" in data and data["focal_length"] != self.cur_focal_length:
                 self._set_focal_length(data["focal_length"])
         print("stopped listening socket_uav_in.")
 
     async def socket_camera_link_in_receive_loop(self):
         while self.receive_commands:
-            data = await self.zmq_manager.recive_data(self.socket_commands_in)
+            data = await self.zmq_client.recive_data(self.socket_commands_in)
             if data["camera_link"]:
                 j1 = data["camera_link"][0]
                 j2 = data["camera_link"][1]
@@ -128,8 +128,8 @@ class CameraSurveillanceMission(Mission):
 
     def stop_mission(self):
         self.receive_commands = False
-        self.zmq_manager.remove_physx_callbacks()
-        asyncio.ensure_future(self.zmq_manager.disconnect_all())
+        self.zmq_client.remove_physx_callbacks()
+        asyncio.ensure_future(self.zmq_client.disconnect_all())
 
     def import_world(self):
         manager = omni.kit.app.get_app().get_extension_manager()

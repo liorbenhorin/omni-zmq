@@ -1,144 +1,151 @@
 # SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 
-import dearpygui.dearpygui as dpg
 
-from zmq_handler import ZMQManager
-from vision import Vision
+import zmq
+import threading
+import time
 
 
-class ZMQServerWindow:
+class ZMQServer:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super().__new__(cls, *args, **kwargs)
+        return cls._instance
+
     def __init__(self):
+        self.push_sockets = {}
+        self.pull_sockets = {}
+        self.reciveing_threads = {}
+        self.sending_threads = {}
+        self._context = None
 
-        self.init_vision()
-        self.init_gui()
-        self.init_connections()
+    def context(self) -> zmq.Context:
+        """
+        Returns the ZMQ context instance.
+        If the context has not been initialized, it creates a new ZMQ context and assigns it to the `_context` attribute.
 
-    def init_gui(self):
-        dpg.create_context()
-        dpg.create_viewport(
-            title="Omni ZMQ Server", width=720, height=800, resizable=False
-        )
-        dpg.setup_dearpygui()
+        Returns:
+            zmq.Context: The ZMQ context instance.
+        """
+        if not self._context:
+            self._context = zmq.Context()
+        return self._context
 
-        self.font_scale = 20
-        with dpg.font_registry():
-            font_medium = dpg.add_font("Inter-Medium.ttf", 16 * self.font_scale)
+    def get_pull_socket(self, port: int) -> zmq.Socket:
+        """
+        Creates and returns a new pull socket that is bound to the specified port.
 
-        dpg.set_global_font_scale(1 / self.font_scale)
-        dpg.bind_font(font_medium)
+        Args:
+            port (int): The port number to bind the socket to.
 
-        with dpg.texture_registry(show=False):
-            dpg.add_raw_texture(
-                self.vision.dimmention,
-                self.vision.dimmention,
-                self.vision.texture_data,
-                tag="image_stream",
-                format=dpg.mvFormat_Float_rgba,
-            )
+        Returns:
+            zmq.Socket: The newly created pull socket.
+        """
+        addr = f"tcp://*:{port}"
+        sock = self.context().socket(zmq.PULL)
+        sock.set_hwm(1)
+        sock.bind(addr)
+        sock.setsockopt(zmq.RCVTIMEO, 1000)  # 1 sec
+        poller = zmq.Poller()
+        poller.register(sock, zmq.POLLIN)
+        self.pull_sockets[addr] = sock
+        return sock
 
-        with dpg.window(tag="Main Window"):
-            dpg.add_image("image_stream", tag="t")
+    def get_push_socket(self, port: int) -> zmq.Socket:
+        """
+        Creates and returns a ZeroMQ PUSH socket bound to the specified port.
 
-            times = ["sim_dt", "local_dt", "local_hz"]
-            for index, t in enumerate(times):
-                with dpg.value_registry():
-                    dpg.add_string_value(tag=t, default_value="0.0")
-                dpg.add_text(
-                    " ".join(t.split("_")).capitalize(), pos=(10, 10 + (20 * index))
-                )
+        Args:
+            port (int): The port number to bind the socket to.
 
-                dpg.add_text(source=t, label=t, pos=(80, 10 + (20 * index)))
+        Returns:
+            zmq.Socket: The created PUSH socket.
 
-            dpg.add_separator()
+        """
+        addr = f"tcp://*:{port}"
+        sock = self.context().socket(zmq.PUSH)
+        sock.setsockopt(zmq.SNDTIMEO, 1000)  # 1 sec
+        sock.bind(addr)
+        self.push_sockets[addr] = sock
+        return sock
 
-            with dpg.group():
-                dpg.add_text("Control Camera with arrows")
-                with dpg.group(horizontal=True):
-                    dpg.add_text("Ground Truth")
-                    dpg.add_combo(
-                        items=["RGB", "BBOX2D", "DEPTH"],
-                        default_value="BBOX2D",
-                        width=100,
-                        tag="ground_truth_mode",
-                    )
-                    dpg.add_text("Focal Length")
-                    dpg.add_slider_float(
-                        tag="zoom",
-                        default_value=20,
-                        min_value=self.vision.camera_range[0],
-                        max_value=self.vision.camera_range[1],
-                        width=200,
-                    )
-                    dpg.add_text("Draw Detection on World")
-                    dpg.add_checkbox(default_value=True, tag="draw_detection_on_world")
+    def recive_from_socket_in_loop(self, name: str, port: int, fn: callable) -> None:
+        """
+        Receives messages from a socket in a loop and calls a given function for each message.
 
-        with dpg.handler_registry():
-            dpg.add_key_down_handler(callback=self.key_press_evnet)
-            dpg.add_key_release_handler(callback=self.key_depress_evnet)
-            dpg.add_mouse_wheel_handler(callback=self.mouse_wheel_evnet)
+        Args:
+            name (str): The name of the receiving thread.
+            port (int): The port number to receive messages from.
+            fn (callable): A callable function that takes a message as input.
 
-        dpg.show_viewport()
-        dpg.set_primary_window("Main Window", True)
+        """
+        sock = self.get_pull_socket(port)
+        stop_event = threading.Event()
 
-    def init_vision(self):
-        self.vision = Vision()
-        self.vision.gpu_preallocate()
+        def loop():
+            while not stop_event.is_set():
+                try:
+                    msg = sock.recv_multipart()
+                    fn(msg)
+                except zmq.Again:
+                    continue
+                except:
+                    print("unable to unpack from socket...")
+                    continue
 
-    def init_connections(self):
-        self.ports = {
-            "camera_annotator": 5555,
-            "camera_link": 5557,
-            "focal_length": 5558,
-        }
-        self.zmq_manager = ZMQManager()
-        self.zmq_manager.recive_from_socket_in_loop(
-            "camera_annotator",
-            self.ports["camera_annotator"],
-            self.vision.receive_images,
-        )
+            sock.close()
 
-        self.zmq_manager.send_from_socket_in_loop(
-            "focal_length_commands",
-            self.ports["focal_length"],
-            self.vision.hz,
-            self.vision.focal_lengh_command,
-        )
+        worker = threading.Thread(target=loop)
+        self.reciveing_threads[name] = (worker, stop_event)
+        worker.start()
 
-        self.zmq_manager.send_from_socket_in_loop(
-            "camera_link_commands",
-            self.ports["camera_link"],
-            self.vision.hz,
-            self.vision.camera_link_command,
-        )
+    def send_from_socket_in_loop(
+        self, name: str, port: int, rate_hz: float, fn: callable
+    ) -> None:
+        """
+        Sends data from a socket in a loop at a specified rate.
 
-    def mouse_wheel_evnet(self, sender, app_data):
-        new_value = dpg.get_value("zoom") + (app_data * 5)
-        new_value = max(min(new_value, 200), 20)
-        dpg.set_value("zoom", new_value)
+        Args:
+            name (str): The name of the sending thread.
+            port (int): The port number to send data to.
+            rate_hz (float): The rate at which data is sent in Hz.
+            fn (callable): A callable function that returns the data to send.
+        """
+        sock = self.get_push_socket(port)
+        stop_event = threading.Event()
 
-    def key_press_evnet(self, sender, app_data):
-        if dpg.is_key_down(dpg.mvKey_Up):
-            self.vision.current_camera_command = [0, 1]
-        elif dpg.is_key_down(dpg.mvKey_Down):
-            self.vision.current_camera_command = [0, -1]
-        elif dpg.is_key_down(dpg.mvKey_Left):
-            self.vision.current_camera_command = [1, 0]
-        elif dpg.is_key_down(dpg.mvKey_Right):
-            self.vision.current_camera_command = [-1, 0]
+        def loop():
+            while not stop_event.is_set():
+                try:
+                    sock.send_pyobj(fn())
+                except zmq.Again:
+                    continue
+                except:
+                    print("unable to send to socket...")
+                    continue
+                time.sleep(1 / rate_hz)
 
-    def key_depress_evnet(self, sender, app_data):
-        self.vision.current_camera_command = [0, 0]
+            sock.close()
 
-    def run(self):
-        while dpg.is_dearpygui_running():
-            dpg.render_dearpygui_frame()
+        worker = threading.Thread(target=loop)
+        self.sending_threads[name] = (worker, stop_event)
+        worker.start()
 
-    def cleanup(self):
-        self.zmq_manager.cleanup()
-        dpg.destroy_context()
+    def cleanup(self) -> None:
+        """
+        Stops and joins all receiving and sending threads.
 
+        This function is used to clean up the threads when they are no longer needed.
+        It sets the stop event for each thread and then joins them to ensure they have finished.
 
-window = ZMQServerWindow()
-window.run()
-window.cleanup()
+        """
+        for name, (worker, stop_event) in self.reciveing_threads.items():
+            stop_event.set()
+            worker.join()
+
+        for name, (worker, stop_event) in self.sending_threads.items():
+            stop_event.set()
+            worker.join()

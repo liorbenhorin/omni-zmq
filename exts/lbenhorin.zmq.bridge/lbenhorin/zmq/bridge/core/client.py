@@ -13,7 +13,7 @@ from functools import partial
 import carb
 import omni
 
-class ZMQManager:
+class ZMQClient:
     _instance = None
 
     def __new__(cls, *args, **kwargs):

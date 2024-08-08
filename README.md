@@ -61,7 +61,7 @@ cd omni-zmq-server
 ```
 2. Inside the container, run the server 
 ```bash
-python3 server.py
+python3 main.py
 ```
 
 ### Communication
@@ -89,7 +89,7 @@ Is is also more performent, since there is no need to render the Omniverse GUI.
 export ISAACSIM_PYTHON = <your isaac sim install path>/python.sh
 export OMNI_ZMQ_REPO = <path to this repo>
 
-ISAACSIM_PYTHON $OMNI_ZMQ_REPO/exts/lbenhorin.zmq.bridge/lbenhorin/zmq/bridge/headless.py --ext-folder $OMNI_ZMQ_REPO/exts
+ISAACSIM_PYTHON $OMNI_ZMQ_REPO/exts/lbenhorin.zmq.bridge/lbenhorin/zmq/bridge/example_headless.py --ext-folder $OMNI_ZMQ_REPO/exts
 ```
 ---
 

@@ -22,13 +22,13 @@ class LbenhorinZmqBridgeExtension(omni.ext.IExt):
         print("[lbenhorin.zmq.bridge] Extension startup")
 
         self.mission = CameraSurveillanceMission()
-
         self.toolbar = get_instance()
         self.button_group = ZMQBridgeButtonGroup(self.mission)
         self.toolbar.add_widget(self.button_group, 100, self.toolbar.get_context())
 
     def on_shutdown(self):
-        self.zmq_manager.remove_physx_callbacks()
+        self.button_group.mission.zmq_manager.remove_physx_callbacks()
         self.toolbar.remove_widget(self.button_group)
         self.button_group = None
+        
         print("[lbenhorin.zmq.bridge] Extension shutdown")

@@ -1,45 +1,20 @@
 # SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: MIT
 
-
 import dearpygui.dearpygui as dpg
-import numpy as np
-import torch
-import cv2
-import json
-import struct
-import time
-import math
-import traceback
-import time
-from zmq_handler import ZMQManager
 
-np.set_printoptions(precision=4, suppress=True)
+from zmq_handler import ZMQManager
+from vision import Vision
 
 
 class ZMQServerWindow:
     def __init__(self):
-        self.ports = {
-            "camera_annotator": 5555,
-            "camera_link": 5557,
-            "focal_length": 5558,
-        }
-        self.dimmention = 720
-        self.expected_size = self.dimmention * self.dimmention * 4
-        self.hz = 60
-        self.last_time = time.time()
-        self.internal_step_time = time.time()
-        self.camera_range = [20, 200]
-        self.current_camera_f = 20
-        self.texture_data = np.zeros(
-            (self.dimmention, self.dimmention, 4), dtype=np.float32
-        )
-        self.depth_data = np.zeros(
-            (self.dimmention, self.dimmention, 4), dtype=np.uint8
-        )
-        self.detection_world_pos = [0, 0, 0]
-        self.detection_camera_pos = [0, 0]
 
+        self.init_vision()
+        self.init_gui()
+        self.init_connections()
+
+    def init_gui(self):
         dpg.create_context()
         dpg.create_viewport(
             title="Omni ZMQ Server", width=720, height=800, resizable=False
@@ -55,9 +30,9 @@ class ZMQServerWindow:
 
         with dpg.texture_registry(show=False):
             dpg.add_raw_texture(
-                self.dimmention,
-                self.dimmention,
-                self.texture_data,
+                self.vision.dimmention,
+                self.vision.dimmention,
+                self.vision.texture_data,
                 tag="image_stream",
                 format=dpg.mvFormat_Float_rgba,
             )
@@ -91,301 +66,69 @@ class ZMQServerWindow:
                     dpg.add_slider_float(
                         tag="zoom",
                         default_value=20,
-                        min_value=self.camera_range[0],
-                        max_value=self.camera_range[1],
+                        min_value=self.vision.camera_range[0],
+                        max_value=self.vision.camera_range[1],
                         width=200,
                     )
                     dpg.add_text("Draw Detection on World")
                     dpg.add_checkbox(default_value=True, tag="draw_detection_on_world")
 
         with dpg.handler_registry():
-            dpg.add_key_down_handler(callback=self.key_press)
-            dpg.add_key_release_handler(callback=self.key_depress)
-            dpg.add_mouse_wheel_handler(callback=self.mouse_wheel)
+            dpg.add_key_down_handler(callback=self.key_press_evnet)
+            dpg.add_key_release_handler(callback=self.key_depress_evnet)
+            dpg.add_mouse_wheel_handler(callback=self.mouse_wheel_evnet)
 
         dpg.show_viewport()
         dpg.set_primary_window("Main Window", True)
 
-        self.gpu_preallocate()
-        self.current_camera_command = [0, 0]
-        self.init_connections()
-
-    def gpu_preallocate(self):
-
-        # Pre-allocate memory on GPU for depth data
-        self._depth_data_gpu = torch.zeros(
-            (self.dimmention, self.dimmention), device="cuda", dtype=torch.float32
-        )
-        # Prepare placeholders for matrices on GPU
-        self.view_matrix_ros_gpu = None
-        self.intrinsics_matrix_gpu = None
-        self.inverse_intrinsics_gpu = None
-
-    def update_camera_matrices(self, view_matrix_ros, intrinsics_matrix):
-        # Update view matrix on GPU
-        if self.view_matrix_ros_gpu is None:
-            self.view_matrix_ros_gpu = torch.tensor(
-                view_matrix_ros, device="cuda", dtype=torch.float32
-            )
-        else:
-            self.view_matrix_ros_gpu.copy_(
-                torch.tensor(view_matrix_ros, device="cuda", dtype=torch.float32)
-            )
-
-        # Update intrinsics matrix on GPU and calculate its inverse
-        if self.intrinsics_matrix_gpu is None:
-            self.intrinsics_matrix_gpu = torch.tensor(
-                intrinsics_matrix, device="cuda", dtype=torch.float32
-            )
-        else:
-            self.intrinsics_matrix_gpu.copy_(
-                torch.tensor(intrinsics_matrix, device="cuda", dtype=torch.float32)
-            )
-
-        # Compute the inverse of the intrinsics matrix on GPU
-        try:
-            self.inverse_intrinsics_gpu = torch.inverse(self.intrinsics_matrix_gpu)
-        except RuntimeError as e:
-            print(f"Error computing inverse intrinsics matrix: {e}")
-            self.inverse_intrinsics_gpu = None
+    def init_vision(self):
+        self.vision = Vision()
+        self.vision.gpu_preallocate()
 
     def init_connections(self):
+        self.ports = {
+            "camera_annotator": 5555,
+            "camera_link": 5557,
+            "focal_length": 5558,
+        }
         self.zmq_manager = ZMQManager()
         self.zmq_manager.recive_from_socket_in_loop(
-            "camera_annotator", self.ports["camera_annotator"], self.receive_images
+            "camera_annotator",
+            self.ports["camera_annotator"],
+            self.vision.receive_images,
         )
 
         self.zmq_manager.send_from_socket_in_loop(
             "focal_length_commands",
             self.ports["focal_length"],
-            self.hz,
-            self.focal_lengh_command,
+            self.vision.hz,
+            self.vision.focal_lengh_command,
         )
 
         self.zmq_manager.send_from_socket_in_loop(
             "camera_link_commands",
             self.ports["camera_link"],
-            self.hz,
-            self.camera_link_command,
+            self.vision.hz,
+            self.vision.camera_link_command,
         )
 
-    def mouse_wheel(self, sender, app_data):
+    def mouse_wheel_evnet(self, sender, app_data):
         new_value = dpg.get_value("zoom") + (app_data * 5)
         new_value = max(min(new_value, 200), 20)
         dpg.set_value("zoom", new_value)
 
-    def key_press(self, sender, app_data):
+    def key_press_evnet(self, sender, app_data):
         if dpg.is_key_down(dpg.mvKey_Up):
-            self.current_camera_command = [0, 1]
+            self.vision.current_camera_command = [0, 1]
         elif dpg.is_key_down(dpg.mvKey_Down):
-            self.current_camera_command = [0, -1]
+            self.vision.current_camera_command = [0, -1]
         elif dpg.is_key_down(dpg.mvKey_Left):
-            self.current_camera_command = [1, 0]
+            self.vision.current_camera_command = [1, 0]
         elif dpg.is_key_down(dpg.mvKey_Right):
-            self.current_camera_command = [-1, 0]
+            self.vision.current_camera_command = [-1, 0]
 
-    def key_depress(self, sender, app_data):
-        self.current_camera_command = [0, 0]
-
-    def focal_lengh_command(self):
-        def smooth_step(current, target, min_step=0.5, max_step=4, smoothness=0.1):
-            diff = abs(target - current)
-            # Use a sigmoid function for smooth interpolation
-            factor = 1 / (1 + math.exp(-diff / smoothness))
-            step = min_step + (max_step - min_step) * factor
-            return step
-
-        target_zoom = dpg.get_value("zoom")
-        if self.current_camera_f != target_zoom:
-            step = smooth_step(self.current_camera_f, target_zoom)
-            if self.current_camera_f < target_zoom:
-                self.current_camera_f = min(self.current_camera_f + step, target_zoom)
-            else:
-                self.current_camera_f = max(self.current_camera_f - step, target_zoom)
-
-        return {"focal_length": self.current_camera_f}
-
-    def camera_link_command(self):
-        factor = np.interp(dpg.get_value("zoom"), self.camera_range, [0.3, 1.2])
-        command_x = self.current_camera_command[0] * factor
-        command_y = self.current_camera_command[1] * factor
-        data_to_send = {
-            "camera_link": [command_x, command_y],
-            "detection_pos": self.detection_world_pos,
-        }
-        return data_to_send
-
-    def receive_images(self, message):
-        start_time = time.perf_counter()
-        img_data = message[0]
-        bbox2d_data = json.loads(message[1].decode("utf-8"))
-        depth_data = message[2]
-        camera_data = json.loads(message[3].decode("utf-8"))
-        dt = struct.unpack("f", message[4])[0]
-
-        if len(img_data) != self.expected_size:
-            print(
-                f"Received image data of size {len(img_data)}, expected {self.expected_size}"
-            )
-            return
-
-        if dpg.get_value("ground_truth_mode") in ["BBOX2D", "RGB"]:
-            img_array = np.frombuffer(img_data, dtype=np.uint8).reshape(
-                self.dimmention, self.dimmention, 4
-            )
-            if dpg.get_value("ground_truth_mode") == "BBOX2D":
-                img_array = self.draw_bounding_boxes(img_array, bbox2d_data)
-        elif dpg.get_value("ground_truth_mode") == "DEPTH":
-            img_array = np.frombuffer(depth_data, dtype=np.float32).reshape(
-                self.dimmention, self.dimmention, 1
-            )
-            try:
-                img_array = self.colorize_depth(img_array)
-            except:
-                print(traceback.format_exc())
-
-        np.divide(img_array, 255.0, out=self.texture_data)
-
-        if dpg.get_value("draw_detection_on_world"):
-            self.get_bbox_center_in_world_coords(
-                bbox2d_data, depth_data, camera_data, device="cuda"
-            )
-        else:
-            self.detection_world_pos = [0, 0, 0]
-
-        local_dt = time.time() - self.last_time
-        self.last_time = time.time()
-
-        dpg.set_value("image_stream", self.texture_data)
-        dpg.set_value("sim_dt", str("{:.2f}".format(dt)))
-        dpg.set_value("local_dt", str("{:.2f}".format(local_dt)))
-        dpg.set_value("local_hz", str("{:.2f}".format(1.0 / local_dt)))
-
-        # print(f'recived image in {(time.perf_counter() - start_time)*10000}')
-
-    def get_bbox_center_in_world_coords(
-        self, bbox_data, depth_data, camera_data, device="cuda"
-    ):
-        if bbox_data["data"]:
-            for bbox in bbox_data["data"]:
-                u = int((bbox[1] + bbox[3]) / 2)
-                v = int((bbox[2] + bbox[4]) / 2)
-                break  # only handle a single detection!
-        else:
-            self.detection_world_pos = [0, 0, 0]
-            return
-
-        self.detection_camera_pos = [u, v]
-        point = [u, v]
-
-        if device == "cuda":
-            view_matrix_ros = np.array(camera_data["view_matrix_ros"])
-            intrinsics_matrix = np.array(camera_data["intrinsics_matrix"])
-            self.update_camera_matrices(view_matrix_ros, intrinsics_matrix)
-            self.get_bbox_center_in_world_coords_gpu(depth_data, point)
-        else:
-            self.get_bbox_center_in_world_coords_cpu(depth_data, camera_data, point)
-
-    def get_bbox_center_in_world_coords_gpu(self, depth_data, point):
-        u, v = point
-        depth_array = np.frombuffer(depth_data, dtype=np.float32).reshape(
-            self.dimmention, self.dimmention
-        )
-        depth_array = np.copy(depth_array)
-        self._depth_data_gpu.copy_(torch.from_numpy(depth_array).cuda())
-        depth_value = (self._depth_data_gpu[v, u] * 10) - 2
-
-        homogenous_point = torch.tensor([u, v, 1.0], device="cuda", dtype=torch.float32)
-        point_camera_coords = torch.mv(
-            self.inverse_intrinsics_gpu, homogenous_point * depth_value
-        )
-
-        point_camera_coords_homogenous = torch.cat(
-            [
-                point_camera_coords,
-                torch.tensor([1.0], device="cuda", dtype=torch.float32),
-            ]
-        )
-        inverse_view_matrix_gpu = torch.inverse(self.view_matrix_ros_gpu)
-        point_world_coords_homogenous = torch.mv(
-            inverse_view_matrix_gpu, point_camera_coords_homogenous
-        )
-
-        point_world_coords = point_world_coords_homogenous[:3].cpu().numpy().tolist()
-        self.detection_world_pos = point_world_coords
-
-    def get_bbox_center_in_world_coords_cpu(self, depth_data, camera_data, point):
-        u, v = point
-        _depth_data = np.frombuffer(depth_data, dtype=np.float32).reshape(
-            self.dimmention, self.dimmention
-        )
-        depth_value = (_depth_data[v, u] * 10) - 2
-
-        #####################################################################################
-        # This is a simplification of:
-        # omni.sensor.Camera.get_world_points_from_image_coords()
-        # https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.sensor/docs/index.html#omni.isaac.sensor.scripts.camera.Camera.get_world_points_from_image_coords
-        # It is implemented for gpu as well as torch
-        view_matrix_ros = np.array(camera_data["view_matrix_ros"])
-        intrinsics_matrix = np.array(camera_data["intrinsics_matrix"])
-
-        homogenous_point = np.array([u, v, 1.0])
-        inverse_intrinsics = np.linalg.inv(intrinsics_matrix)
-
-        point_camera_coords = inverse_intrinsics @ (homogenous_point * depth_value)
-
-        point_camera_coords_homogenous = np.append(point_camera_coords, 1.0)
-        inverse_view_matrix = np.linalg.inv(view_matrix_ros)
-
-        point_world_coords_homogenous = (
-            inverse_view_matrix @ point_camera_coords_homogenous
-        )
-
-        point_world_coords = point_world_coords_homogenous[:3].tolist()
-        #####################################################################################
-
-        self.detection_world_pos = point_world_coords
-
-    def draw_bounding_boxes(self, img_array, bbox_data):
-        img_with_boxes = img_array.copy()
-        bboxes = bbox_data["data"]
-        id_to_labels = bbox_data["info"]["idToLabels"]
-        color = (118, 185, 0)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-
-        for bbox in bboxes:
-            semantic_id = bbox[0]
-            x_min, y_min = bbox[1], bbox[2]
-            x_max, y_max = bbox[3], bbox[4]
-
-            u = int((bbox[1] + bbox[3]) / 2)
-            v = int((bbox[2] + bbox[4]) / 2)
-
-            label = id_to_labels.get(str(semantic_id), {}).get("class", "Unknown")
-            cv2.circle(img_with_boxes, (u, v), 10, color, 2)
-            cv2.rectangle(img_with_boxes, (x_min, y_min), (x_max, y_max), color, 2)
-            cv2.putText(img_with_boxes, label, (x_min, y_min - 10), font, 0.9, color, 2)
-
-        img_with_boxes[:, :, 3] = 255
-        return img_with_boxes
-
-    def colorize_depth(self, depth_data):
-        # https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/programmatic_visualization.html#helper-visualization-functions
-        near = 1.0
-        far = 50.0
-
-        # if we want the image colorized to a color:
-        # depth_data = np.squeeze(depth_data)
-
-        depth_data = np.clip(depth_data, near, far)
-        depth_data = (np.log(depth_data) - np.log(near)) / (np.log(far) - np.log(near))
-        depth_data = 1.0 - depth_data
-        depth_data_uint8 = (depth_data * 255).astype(np.uint8)
-
-        # if we want the image colorized to a color:
-        # self.depth_data[:, :, 0] = depth_data_uint8
-        # self.depth_data[:, :, 3] = 255
-        return depth_data_uint8
+    def key_depress_evnet(self, sender, app_data):
+        self.vision.current_camera_command = [0, 0]
 
     def run(self):
         while dpg.is_dearpygui_running():

@@ -12,108 +12,6 @@ from functools import partial
 
 import carb
 import omni
-import omni.replicator.core as rep
-from omni.replicator.core.scripts.utils import viewport_manager
-
-from omni.isaac.core.world import World
-from omni.isaac.core.prims import XFormPrim
-from omni.isaac.sensor import Camera
-
-import numpy as np
-
-np.set_printoptions(precision=3, suppress=True)
-
-
-class ZMQAnnotator:
-    def __init__(
-        self,
-        socket: zmq.asyncio.Socket,
-        camera: str,
-        resolution: tuple,
-        annotator: str,
-    ):
-
-        self.sock = socket
-
-        force_new = False
-        name = f"{camera.split('/')[-1]}_rp"
-        self.camera_xform = XFormPrim(camera)
-
-        rp = viewport_manager.get_render_product(camera, resolution, force_new, name)
-        self.rgb_annot = rep.AnnotatorRegistry.get_annotator("rgb")
-        self.rgb_annot.attach(rp)
-
-        self.bbox2d_annot = rep.AnnotatorRegistry.get_annotator("bounding_box_2d_tight")
-        self.bbox2d_annot.attach(rp)
-
-        self.distance_to_camera_annot = rep.AnnotatorRegistry.get_annotator(
-            "distance_to_camera"
-        )
-        self.distance_to_camera_annot.attach(rp)
-
-        # self.camera_annot = rep.AnnotatorRegistry.get_annotator("CameraParams")
-        # self.camera_annot.attach(rp)
-
-        self._camera = Camera(
-            prim_path=camera,
-            render_product_path=rp.path,
-            resolution=resolution,
-        )
-        self._camera.initialize()
-
-    def send(self, dt: float):
-        _dt = struct.pack("f", dt)
-
-        # https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/annotators_details.html#bounding-box-2d-tight
-        bbox2d_data = self.bbox2d_annot.get_data()
-        _bbox2d_data = {
-            "info": {
-                "bboxIds": bbox2d_data["info"]["bboxIds"].tolist(),
-                "idToLabels": bbox2d_data["info"]["idToLabels"],
-                "primPaths": bbox2d_data["info"]["primPaths"],
-            },
-            "data": bbox2d_data["data"].tolist(),
-        }
-
-        _bbox2d_data = json.dumps(_bbox2d_data).encode("utf-8")
-
-        # cp = self.camera_annot.get_data()
-        _camera_params = {
-            # "cameraAperture": cp["cameraAperture"].tolist(),
-            # "cameraApertureOffset": cp["cameraApertureOffset"].tolist(),
-            # "cameraFisheyeMaxFOV": cp["cameraFisheyeMaxFOV"],
-            # "cameraFisheyeNominalHeight": cp["cameraFisheyeNominalHeight"],
-            # "cameraFisheyeNominalWidth": cp["cameraFisheyeNominalWidth"],
-            # "cameraFisheyeOpticalCentre": cp["cameraFisheyeOpticalCentre"].tolist(),
-            # "cameraFisheyePolynomial": cp["cameraFisheyePolynomial"].tolist(),
-            # "cameraFocalLength": cp["cameraFocalLength"],
-            # "cameraFocusDistance": cp["cameraFocusDistance"],
-            # "cameraFStop": cp["cameraFStop"],
-            # "cameraModel": cp["cameraModel"],
-            # "cameraNearFar": cp["cameraNearFar"].tolist(),
-            # "cameraProjection": cp["cameraProjection"].tolist(),
-            # "cameraViewTransform": cp["cameraViewTransform"].tolist(),
-            # "metersPerSceneUnit": cp["metersPerSceneUnit"],
-            # "renderProductResolution": cp["renderProductResolution"].tolist(),
-            # "cameraWorldTransform": (
-            #     self.camera_xform.get_world_pose()[0].tolist(),
-            #     self.camera_xform.get_world_pose()[1].tolist(),
-            # ),
-            "view_matrix_ros": self._camera.get_view_matrix_ros().tolist(),
-            "intrinsics_matrix": self._camera.get_intrinsics_matrix().tolist(),
-        }
-
-        _camera_params = json.dumps(_camera_params).encode("utf-8")
-
-        data = [
-            self.rgb_annot.get_data().tobytes(),
-            _bbox2d_data,
-            self.distance_to_camera_annot.get_data().tobytes(),
-            _camera_params,
-            _dt,
-        ]
-        asyncio.ensure_future(self.sock.send_multipart(data))
-
 
 class ZMQManager:
     _instance = None
@@ -141,12 +39,6 @@ class ZMQManager:
         if not self._context:
             self._context = zmq.asyncio.Context()
         return self._context
-
-    def get_annotator(self, port: int, camera: str, resolution: tuple, annotator: str):
-        soket = self.get_push_socket(port)
-        annot = ZMQAnnotator(soket, camera, resolution, annotator)
-        self.annotators[annotator] = annot
-        return annot
 
     def get_push_socket(self, port: int) -> zmq.Socket:
         """

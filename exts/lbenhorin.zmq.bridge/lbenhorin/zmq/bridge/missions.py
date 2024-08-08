@@ -2,35 +2,81 @@
 # SPDX-License-Identifier: MIT
 
 import asyncio
-import os
-from functools import lru_cache
 from pathlib import Path
 
-from pxr import Sdf, Gf, Tf
-from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
 import carb
 import omni.usd
-import omni.ext
-import omni.ui as ui
 
 from omni.isaac.core.world import World
 from omni.isaac.core.robots import Robot
 from omni.isaac.core.utils.types import ArticulationAction
-from .zmq_manager import ZMQManager
-
-
 from omni.isaac.debug_draw import _debug_draw
+from omni.kit.usd.layers import LayerUtils
+
+from .manager import ZMQManager
+from .annotators import ZMQAnnotator
 
 
-class ZMQBridge:
+class Mission:
+    def __init__(self):
+        self.zmq_manager = ZMQManager()
+
+    def reset_world_async(self):
+        pass
+
+    def reset_world(self):
+        pass
+
+    def start_mission(self):
+        pass
+
+    def stop_mission(self):
+        pass
+
+    def import_world(self):
+        pass
+
+
+class CameraSurveillanceMission:
     def __init__(self, zmq_manager: ZMQManager):
-        self.zmq_manager = zmq_manager
+
         self.scene_root = "/World"
-        self.receive_commands = False
-        self._is_streaming = False
-        self.draw = _debug_draw.acquire_debug_draw_interface()
         self.camera_path = "/World/base_link/y_link/Camera"
+        self.draw = _debug_draw.acquire_debug_draw_interface()
+
+        self.zmq_manager = zmq_manager
+        self.receive_commands = False
+
+    def start_mission(self):
+        ports = {
+            "camera_annotator": 5555,
+            "camera_link": 5557,
+            "focal_length": 5558,
+        }
+        rgb_hz = 1.0 / 60.0
+        dimension = 720
+
+        self.socket_camera_out = self.zmq_manager.get_push_socket(
+            ports["camera_annotator"]
+        )
+        self.socket_commands_in = self.zmq_manager.get_pull_socket(ports["camera_link"])
+        self.socket_uav_in = self.zmq_manager.get_pull_socket(ports["focal_length"])
+
+        self.camera_annotator = ZMQAnnotator(
+            self.socket_camera_out,
+            self.camera_path,
+            (dimension, dimension),
+            "camera_annotator",
+        )
+
+        self.zmq_manager.add_physx_step_callback(
+            "camera_annotator", rgb_hz, self.camera_annotator.send
+        )
+
+        self.receive_commands = True
+        asyncio.ensure_future(self.socket_camera_link_in_receive_loop())
+        asyncio.ensure_future(self.socket_focal_lengh_in_receive_loop())
 
     def draw_debug_point(self, pos: tuple):
         self.draw.clear_points()
@@ -51,9 +97,7 @@ class ZMQBridge:
         async def _reset():
             self.world = World()
             await self.world.initialize_simulation_context_async()
-            self.robot = Robot(
-                prim_path=f"/World/base_link", name="robot"
-            )
+            self.robot = Robot(prim_path=f"/World/base_link", name="robot")
             self.world.scene.clear(registry_only=True)
             self.world.scene.add(self.robot)
             await self.world.reset_async()
@@ -64,9 +108,7 @@ class ZMQBridge:
     def reset_world(self):
         self.draw.clear_points()
         self.world = World()
-        self.robot = Robot(
-            prim_path=f"/World/base_link", name="robot"
-        )
+        self.robot = Robot(prim_path=f"/World/base_link", name="robot")
         self.world.scene.clear(registry_only=True)
         self.world.scene.add(self.robot)
         self.world.reset()
@@ -104,33 +146,19 @@ class ZMQBridge:
 
         print("stopped listening")
 
-    def start_streaming(self):
-        ports = {
-            "camera_annotator": 5555,
-            "camera_link": 5557,
-            "focal_length": 5558,
-        }
-        rgb_hz = 1.0 / 60.0
-        dimension = 720
-        self.camera_annotator = self.zmq_manager.get_annotator(
-            ports["camera_annotator"],
-            self.camera_path,
-            (dimension, dimension),
-            "camera_annotator",
-        )
-
-        self.zmq_manager.add_physx_step_callback(
-            "camera_annotator", rgb_hz, self.camera_annotator.send
-        )
-
-        self.socket_commands_in = self.zmq_manager.get_pull_socket(ports["camera_link"])
-        self.socket_uav_in = self.zmq_manager.get_pull_socket(ports["focal_length"])
-
-        self.receive_commands = True
-        asyncio.ensure_future(self.socket_camera_link_in_receive_loop())
-        asyncio.ensure_future(self.socket_focal_lengh_in_receive_loop())
-
-    def stop_streaming(self):
+    def stop_mission(self):
         self.receive_commands = False
         self.zmq_manager.remove_physx_callbacks()
         asyncio.ensure_future(self.zmq_manager.disconnect_all())
+
+    def import_world(self):
+        manager = omni.kit.app.get_app().get_extension_manager()
+        extension_path = manager.get_extension_path_by_module("lbenhorin.zmq.bridge")
+        data_path = Path(extension_path).joinpath("data")
+
+        context = omni.usd.get_context()
+        stage = context.get_stage()
+        assets_path = data_path.parent.parent.parent / "assets"
+        source_usd = str(assets_path / "camera" / "camera_world.usda")
+        root_layer = stage.GetRootLayer()
+        LayerUtils.insert_sublayer(root_layer, 0, source_usd)

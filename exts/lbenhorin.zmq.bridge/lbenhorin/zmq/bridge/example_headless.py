@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 # to run this file:
-# ISAACSIM_PYTHON exts/lbenhorin.zmq.bridge/lbenhorin/zmq/bridge/headless.py --ext-folder /home/lbenhorin/workspaces/omni-zmq/exts
+# ISAACSIM_PYTHON exts/lbenhorin.zmq.bridge/lbenhorin/zmq/bridge/example_headless.py --ext-folder /home/lbenhorin/workspaces/omni-zmq/exts
 
 
 from pathlib import Path
@@ -22,12 +22,10 @@ manager = omni.kit.app.get_app().get_extension_manager()
 manager.set_extension_enabled_immediate("lbenhorin.zmq.bridge", True)
 
 
-from lbenhorin.zmq.bridge import ZMQManager
-from lbenhorin.zmq.bridge.missions import CameraSurveillanceMission
+from lbenhorin.zmq.bridge.example_missions import CameraSurveillanceMission
 
 
-_zmq_manager = ZMQManager()
-mission = CameraSurveillanceMission(_zmq_manager)
+mission = CameraSurveillanceMission()
 mission.import_world()
 mission.reset_world()
 mission.start_mission()

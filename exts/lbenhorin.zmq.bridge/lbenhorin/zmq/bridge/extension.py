@@ -8,9 +8,9 @@ import omni.ui as ui
 
 from omni.kit.widget.toolbar import get_instance
 
-from .manager import ZMQManager
-from .missions import CameraSurveillanceMission
-from .ui import ZMQBridgeButtonGroup
+
+from .core.ui import ZMQBridgeButtonGroup
+from .example_missions import CameraSurveillanceMission
 
 
 # Any class derived from `omni.ext.IExt` in the top level module (defined in `python.modules` of `extension.toml`) will
@@ -21,8 +21,7 @@ class LbenhorinZmqBridgeExtension(omni.ext.IExt):
     def on_startup(self, ext_id):
         print("[lbenhorin.zmq.bridge] Extension startup")
 
-        self.zmq_manager = ZMQManager()
-        self.mission = CameraSurveillanceMission(self.zmq_manager)
+        self.mission = CameraSurveillanceMission()
 
         self.toolbar = get_instance()
         self.button_group = ZMQBridgeButtonGroup(self.mission)

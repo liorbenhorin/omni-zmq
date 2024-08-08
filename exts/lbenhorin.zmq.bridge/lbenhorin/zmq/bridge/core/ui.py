@@ -13,7 +13,7 @@ import omni.ui as ui
 
 from omni.kit.widget.toolbar import WidgetGroup, get_instance
 
-from .missions import Mission
+from .mission import Mission
 
 
 @lru_cache()

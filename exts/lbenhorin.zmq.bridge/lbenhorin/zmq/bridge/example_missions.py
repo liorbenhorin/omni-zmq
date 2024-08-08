@@ -14,38 +14,18 @@ from omni.isaac.core.utils.types import ArticulationAction
 from omni.isaac.debug_draw import _debug_draw
 from omni.kit.usd.layers import LayerUtils
 
-from .manager import ZMQManager
-from .annotators import ZMQAnnotator
+from .core.annotators import ZMQAnnotator
+from .core.mission import Mission
 
 
-class Mission:
+class CameraSurveillanceMission(Mission):
     def __init__(self):
-        self.zmq_manager = ZMQManager()
-
-    def reset_world_async(self):
-        pass
-
-    def reset_world(self):
-        pass
-
-    def start_mission(self):
-        pass
-
-    def stop_mission(self):
-        pass
-
-    def import_world(self):
-        pass
-
-
-class CameraSurveillanceMission:
-    def __init__(self, zmq_manager: ZMQManager):
+        Mission.__init__(self)
 
         self.scene_root = "/World"
         self.camera_path = "/World/base_link/y_link/Camera"
         self.draw = _debug_draw.acquire_debug_draw_interface()
 
-        self.zmq_manager = zmq_manager
         self.receive_commands = False
 
     def start_mission(self):

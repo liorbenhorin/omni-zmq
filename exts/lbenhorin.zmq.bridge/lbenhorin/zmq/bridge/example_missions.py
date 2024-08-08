@@ -3,7 +3,8 @@
 
 import asyncio
 from pathlib import Path
-
+import time
+import numpy as np
 
 import carb
 import omni.usd
@@ -11,6 +12,8 @@ import omni.usd
 from omni.isaac.core.world import World
 from omni.isaac.core.robots import Robot
 from omni.isaac.core.utils.types import ArticulationAction
+from omni.isaac.core.articulations import Articulation
+from omni.isaac.franka import KinematicsSolver
 from omni.isaac.debug_draw import _debug_draw
 from omni.kit.usd.layers import LayerUtils
 
@@ -73,17 +76,17 @@ class CameraSurveillanceMission(Mission):
         except:
             self.set_camera()
 
-    def reset_world_async(self):
-        async def _reset():
-            self.world = World()
-            await self.world.initialize_simulation_context_async()
-            self.robot = Robot(prim_path=f"/World/base_link", name="robot")
-            self.world.scene.clear(registry_only=True)
-            self.world.scene.add(self.robot)
-            await self.world.reset_async()
-            self.controller = self.robot.get_articulation_controller()
+    async def _reset(self):
+        self.world = World()
+        await self.world.initialize_simulation_context_async()
+        self.robot = Robot(prim_path=f"/World/base_link", name="robot")
+        self.world.scene.clear(registry_only=True)
+        self.world.scene.add(self.robot)
+        await self.world.reset_async()
+        self.controller = self.robot.get_articulation_controller()
 
-        asyncio.ensure_future(_reset())
+    def reset_world_async(self):
+        asyncio.ensure_future(self._reset())
 
     def reset_world(self):
         self.draw.clear_points()
@@ -144,66 +147,30 @@ class CameraSurveillanceMission(Mission):
         LayerUtils.insert_sublayer(root_layer, 0, source_usd)
 
 
-
 class FrankaVisionMission(CameraSurveillanceMission):
     def __init__(self):
         CameraSurveillanceMission.__init__(self)
+        self.last_trigger_time = 0
 
-    #     self.camera_path = "/panda/panda_hand/Camera"
-    #     # self.draw = _debug_draw.acquire_debug_draw_interface()
+    def draw_debug_point(self, pos: tuple):
+        super().draw_debug_point(pos)
+        current_time = time.time()
+        if current_time - self.last_trigger_time > 2:
+            print(np.array(pos))
+            action = self.franka_ks.compute_inverse_kinematics(
+                target_position=np.array(pos)
+            )
+            if action[1]:
+                self.frank_articulation.apply_action(action[0])
+            self.last_trigger_time = current_time
 
-    #     self.receive_commands = False
+    async def _reset(self):
+        await super()._reset()
+        self.frank_articulation = Articulation(prim_path="/panda")
+        self.frank_articulation.initialize()
+        self.franka_ks = KinematicsSolver(robot_articulation=self.frank_articulation)
 
-    # def start_mission(self):
-    #     ports = {
-    #         "camera_annotator": 5555,
-    #         "camera_link": 5557,
-    #         "focal_length": 5558,
-    #     }
-    #     rgb_hz = 1.0 / 60.0
-    #     dimension = 720
-
-    #     self.socket_camera_out = self.zmq_client.get_push_socket(
-    #         ports["camera_annotator"]
-    #     )
-    #     self.socket_commands_in = self.zmq_client.get_pull_socket(ports["camera_link"])
-    #     self.socket_uav_in = self.zmq_client.get_pull_socket(ports["focal_length"])
-
-    #     self.camera_annotator = ZMQAnnotator(
-    #         self.socket_camera_out,
-    #         self.camera_path,
-    #         (dimension, dimension),
-    #         "camera_annotator",
-    #     )
-    #     self.zmq_client.add_physx_step_callback(
-    #         "camera_annotator", rgb_hz, self.camera_annotator.send
-    #     )
-
-    #     self.receive_commands = True
-
-    # def stop_mission(self):
-    #     self.receive_commands = False
-    #     self.zmq_client.remove_physx_callbacks()
-    #     asyncio.ensure_future(self.zmq_client.disconnect_all())
-
-
-    # def reset_world_async(self):
-    #     async def _reset():
-    #         self.world = World()
-    #         await self.world.initialize_simulation_context_async()
-    #         self.robot = Robot(prim_path=f"/World/base_link", name="robot")
-    #         self.world.scene.clear(registry_only=True)
-    #         self.world.scene.add(self.robot)
-    #         await self.world.reset_async()
-    #         self.controller = self.robot.get_articulation_controller()
-
-    #     asyncio.ensure_future(_reset())
-
-    # def reset_world(self):
-    #     # self.draw.clear_points()
-    #     self.world = World()
-    #     self.robot = Robot(prim_path=f"/World/base_link", name="robot")
-    #     self.world.scene.clear(registry_only=True)
-    #     self.world.scene.add(self.robot)
-    #     self.world.reset()
-    #     self.controller = self.robot.get_articulation_controller()
+    def reset_world(self):
+        super().reset_world()
+        self.frank_articulation = None
+        self.franka_ks = None

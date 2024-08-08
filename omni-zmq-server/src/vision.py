@@ -204,7 +204,7 @@ class Vision:
         self._depth_data_gpu.copy_(torch.from_numpy(depth_array).cuda())
 
         # Get the depth value at the specified point (u, v)
-        depth_value = (self._depth_data_gpu[v, u] * 10) - 2
+        depth_value = (self._depth_data_gpu[v, u] * 100)# - 2
 
         # Create a homogeneous point (u, v, 1.0) as a tensor on the GPU
         homogenous_point = torch.tensor([u, v, 1.0], device="cuda", dtype=torch.float32)

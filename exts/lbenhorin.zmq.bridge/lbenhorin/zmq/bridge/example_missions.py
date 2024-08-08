@@ -142,3 +142,68 @@ class CameraSurveillanceMission(Mission):
         source_usd = str(assets_path / "camera" / "camera_world.usda")
         root_layer = stage.GetRootLayer()
         LayerUtils.insert_sublayer(root_layer, 0, source_usd)
+
+
+
+class FrankaVisionMission(CameraSurveillanceMission):
+    def __init__(self):
+        CameraSurveillanceMission.__init__(self)
+
+    #     self.camera_path = "/panda/panda_hand/Camera"
+    #     # self.draw = _debug_draw.acquire_debug_draw_interface()
+
+    #     self.receive_commands = False
+
+    # def start_mission(self):
+    #     ports = {
+    #         "camera_annotator": 5555,
+    #         "camera_link": 5557,
+    #         "focal_length": 5558,
+    #     }
+    #     rgb_hz = 1.0 / 60.0
+    #     dimension = 720
+
+    #     self.socket_camera_out = self.zmq_client.get_push_socket(
+    #         ports["camera_annotator"]
+    #     )
+    #     self.socket_commands_in = self.zmq_client.get_pull_socket(ports["camera_link"])
+    #     self.socket_uav_in = self.zmq_client.get_pull_socket(ports["focal_length"])
+
+    #     self.camera_annotator = ZMQAnnotator(
+    #         self.socket_camera_out,
+    #         self.camera_path,
+    #         (dimension, dimension),
+    #         "camera_annotator",
+    #     )
+    #     self.zmq_client.add_physx_step_callback(
+    #         "camera_annotator", rgb_hz, self.camera_annotator.send
+    #     )
+
+    #     self.receive_commands = True
+
+    # def stop_mission(self):
+    #     self.receive_commands = False
+    #     self.zmq_client.remove_physx_callbacks()
+    #     asyncio.ensure_future(self.zmq_client.disconnect_all())
+
+
+    # def reset_world_async(self):
+    #     async def _reset():
+    #         self.world = World()
+    #         await self.world.initialize_simulation_context_async()
+    #         self.robot = Robot(prim_path=f"/World/base_link", name="robot")
+    #         self.world.scene.clear(registry_only=True)
+    #         self.world.scene.add(self.robot)
+    #         await self.world.reset_async()
+    #         self.controller = self.robot.get_articulation_controller()
+
+    #     asyncio.ensure_future(_reset())
+
+    # def reset_world(self):
+    #     # self.draw.clear_points()
+    #     self.world = World()
+    #     self.robot = Robot(prim_path=f"/World/base_link", name="robot")
+    #     self.world.scene.clear(registry_only=True)
+    #     self.world.scene.add(self.robot)
+    #     self.world.reset()
+    #     self.controller = self.robot.get_articulation_controller()

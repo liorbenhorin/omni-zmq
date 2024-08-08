@@ -10,7 +10,7 @@ from omni.kit.widget.toolbar import get_instance
 
 
 from .core.ui import ZMQBridgeButtonGroup
-from .example_missions import CameraSurveillanceMission
+from .example_missions import CameraSurveillanceMission, FrankaVisionMission
 
 
 # Any class derived from `omni.ext.IExt` in the top level module (defined in `python.modules` of `extension.toml`) will
@@ -21,13 +21,13 @@ class LbenhorinZmqBridgeExtension(omni.ext.IExt):
     def on_startup(self, ext_id):
         print("[lbenhorin.zmq.bridge] Extension startup")
 
-        self.mission = CameraSurveillanceMission()
+        self.mission = FrankaVisionMission()
         self.toolbar = get_instance()
         self.button_group = ZMQBridgeButtonGroup(self.mission)
         self.toolbar.add_widget(self.button_group, 100, self.toolbar.get_context())
 
     def on_shutdown(self):
-        self.button_group.mission.zmq_manager.remove_physx_callbacks()
+        self.button_group.mission.zmq_client.remove_physx_callbacks()
         self.toolbar.remove_widget(self.button_group)
         self.button_group = None
 

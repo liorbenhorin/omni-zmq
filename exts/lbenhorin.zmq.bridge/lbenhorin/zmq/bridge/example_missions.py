@@ -163,7 +163,24 @@ class FrankaVisionMission(CameraSurveillanceMission):
         self.last_trigger_time = 0
 
     def draw_debug_point(self, pos: tuple):
+        if pos == (0, 0, 0):
+            return
+        
         super().draw_debug_point(pos)
+        current_time = time.time()
+        if current_time - self.last_trigger_time > 5:
+            lower_bounds = np.array([0.2, -0.2, 0.1])
+            upper_bounds = np.array([.6, 0.2, .5])
+
+            # Generate the random array
+            random_array = np.random.uniform(lower_bounds, upper_bounds)
+            self.target.set_world_pose(
+                position=random_array
+            )
+        
+        
+            self.last_trigger_time = current_time
+
         actions = self.rmpf_controller.forward(
             target_end_effector_position=np.array(pos),
             target_end_effector_orientation=np.array([0, 1, 0, 0]),
@@ -178,6 +195,7 @@ class FrankaVisionMission(CameraSurveillanceMission):
             name="target_follower_controller", robot_articulation=self.franka
         )
         self.franka_articulation_controller = self.franka.get_articulation_controller()
+        self.target = XFormPrim(prim_path="/World/Target")
 
     def reset_world(self):
         super().reset_world()
@@ -186,3 +204,4 @@ class FrankaVisionMission(CameraSurveillanceMission):
         self.franka = None
         self.franka_articulation_controller = None
         self.rmpf_controller = None
+        self.target = None

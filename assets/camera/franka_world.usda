@@ -243,6 +243,28 @@ def Xform "World"
             float physxRigidBody:sleepThreshold = 0
         }
     }
+
+    def RectLight "RectLight" (
+        prepend apiSchemas = ["ShapingAPI"]
+    )
+    {
+        float3[] extent = [(-50, -50, -0), (50, 50, 0)]
+        float inputs:exposure = 0
+        float inputs:height = 100
+        float inputs:intensity = 8000
+        bool inputs:normalize = 1
+        float inputs:shaping:cone:angle = 180
+        float inputs:shaping:cone:softness
+        float inputs:shaping:focus
+        color3f inputs:shaping:focusTint
+        asset inputs:shaping:ies:file
+        float inputs:width = 100
+        bool visibleInPrimaryRay = 0
+        quatd xformOp:orient = (0.7071067811865476, 0, 0, 0.7071067811865475)
+        double3 xformOp:scale = (0.0007000000000030127, 0.0007000000000030127, 0.0007000000000030127)
+        double3 xformOp:translate = (0.9131000543134977, -9.084533137818426e-15, 1.553758659902226)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
 }
 
 def Xform "Environment"
@@ -256,6 +278,7 @@ def Xform "Environment"
         prepend apiSchemas = ["ShapingAPI"]
     )
     {
+        float inputs:exposure = -1
         float inputs:intensity = 1000
         float inputs:shaping:cone:angle = 180
         float inputs:shaping:cone:softness

@@ -199,9 +199,22 @@ class FrankaVisionMission(CameraSurveillanceMission):
 
     def reset_world(self):
         super().reset_world()
-        self.frank_articulation = None
-        self.franka_ks = None
-        self.franka = None
-        self.franka_articulation_controller = None
-        self.rmpf_controller = None
-        self.target = None
+        self.franka = Franka(prim_path="/World/Franka")
+        self.franka.initialize()
+        self.rmpf_controller = RMPFlowController(
+            name="target_follower_controller", robot_articulation=self.franka
+        )
+        self.franka_articulation_controller = self.franka.get_articulation_controller()
+        self.target = XFormPrim(prim_path="/World/Target")
+
+    def import_world(self):
+        manager = omni.kit.app.get_app().get_extension_manager()
+        extension_path = manager.get_extension_path_by_module("lbenhorin.zmq.bridge")
+        data_path = Path(extension_path).joinpath("data")
+
+        context = omni.usd.get_context()
+        stage = context.get_stage()
+        assets_path = data_path.parent.parent.parent / "assets"
+        source_usd = str(assets_path / "camera" / "franka_world.usda")
+        root_layer = stage.GetRootLayer()
+        LayerUtils.insert_sublayer(root_layer, 0, source_usd)

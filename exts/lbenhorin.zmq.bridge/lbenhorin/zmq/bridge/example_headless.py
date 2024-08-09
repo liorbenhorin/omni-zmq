@@ -22,10 +22,10 @@ manager = omni.kit.app.get_app().get_extension_manager()
 manager.set_extension_enabled_immediate("lbenhorin.zmq.bridge", True)
 
 
-from lbenhorin.zmq.bridge.example_missions import CameraSurveillanceMission
+from lbenhorin.zmq.bridge.example_missions import CameraSurveillanceMission, FrankaVisionMission
 
 
-mission = CameraSurveillanceMission()
+mission = FrankaVisionMission()
 mission.import_world()
 mission.reset_world()
 mission.start_mission()

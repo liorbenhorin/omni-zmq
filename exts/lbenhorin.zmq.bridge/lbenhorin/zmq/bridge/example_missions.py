@@ -6,16 +6,22 @@ from pathlib import Path
 import time
 import numpy as np
 
+import omni.usd
+from pxr import Sdf, Gf, Tf
+from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
+
+
 import carb
 import omni.usd
 
 from omni.isaac.core.world import World
 from omni.isaac.core.robots import Robot
 from omni.isaac.core.utils.types import ArticulationAction
-from omni.isaac.core.articulations import Articulation
-from omni.isaac.franka import KinematicsSolver
 from omni.isaac.debug_draw import _debug_draw
 from omni.kit.usd.layers import LayerUtils
+from omni.isaac.franka import Franka
+from omni.isaac.franka.controllers.rmpflow_controller import RMPFlowController
+from omni.isaac.core.prims import XFormPrim
 
 from .core.annotators import ZMQAnnotator
 from .core.mission import Mission
@@ -32,6 +38,10 @@ class CameraSurveillanceMission(Mission):
         self.receive_commands = False
 
     def start_mission(self):
+        # self.receive_commands = True
+        # asyncio.ensure_future(self.rmpf_loop())
+        # return
+
         ports = {
             "camera_annotator": 5555,
             "camera_link": 5557,
@@ -113,7 +123,7 @@ class CameraSurveillanceMission(Mission):
             data = await self.zmq_client.recive_data(self.socket_uav_in)
             if "focal_length" in data and data["focal_length"] != self.cur_focal_length:
                 self._set_focal_length(data["focal_length"])
-        print("stopped listening socket_uav_in.")
+        print("stopped listening.")
 
     async def socket_camera_link_in_receive_loop(self):
         while self.receive_commands:
@@ -154,23 +164,25 @@ class FrankaVisionMission(CameraSurveillanceMission):
 
     def draw_debug_point(self, pos: tuple):
         super().draw_debug_point(pos)
-        current_time = time.time()
-        if current_time - self.last_trigger_time > 2:
-            print(np.array(pos))
-            action = self.franka_ks.compute_inverse_kinematics(
-                target_position=np.array(pos)
-            )
-            if action[1]:
-                self.frank_articulation.apply_action(action[0])
-            self.last_trigger_time = current_time
+        actions = self.rmpf_controller.forward(
+            target_end_effector_position=np.array(pos),
+            target_end_effector_orientation=np.array([0, 1, 0, 0]),
+        )
+        self.franka_articulation_controller.apply_action(actions)
 
     async def _reset(self):
         await super()._reset()
-        self.frank_articulation = Articulation(prim_path="/panda")
-        self.frank_articulation.initialize()
-        self.franka_ks = KinematicsSolver(robot_articulation=self.frank_articulation)
+        self.franka = Franka(prim_path="/World/Franka")
+        self.franka.initialize()
+        self.rmpf_controller = RMPFlowController(
+            name="target_follower_controller", robot_articulation=self.franka
+        )
+        self.franka_articulation_controller = self.franka.get_articulation_controller()
 
     def reset_world(self):
         super().reset_world()
         self.frank_articulation = None
         self.franka_ks = None
+        self.franka = None
+        self.franka_articulation_controller = None
+        self.rmpf_controller = None
